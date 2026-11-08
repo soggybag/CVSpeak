@@ -17,6 +17,10 @@ The hardware will be an RP2350-based module with an OLED display and an encoder,
 - **Select CV** at one word or phrase per semitone, so a note sequencer can pick words.
 - A tiny vocabulary footprint of about 100 bytes per word. 51 words take about 5.6 KB.
 
+## Download
+
+Prebuilt plugins for Windows, Linux, Intel Macs and Apple Silicon Macs are on the [Releases page](https://github.com/soggybag/CVSpeak/releases). Download the `.vcvplugin` file for your system. In Rack 2, choose **Help → Open user folder**, put the file in the `plugins-…` folder there, and restart Rack.
+
 ## VCV Rack module
 
 | Control | What it does |
@@ -59,6 +63,15 @@ make dist          # package dist/CVSpeak-<version>-<os>-<cpu>.vcvplugin to shar
 Restart Rack after installing, since Rack only loads plugins at startup. If you'd rather skip packaging while iterating, run `make vcv-link` once. It links Rack's plugin folder to this repository, and after that each change only needs `make` and a Rack restart. Don't mix the two: `make install` would put a packaged copy next to the link, so use `make vcv-install`, which refuses to run while the link exists.
 
 The repository root is the plugin folder (`plugin.json`, `src/`, `res/`), which is the layout the VCV Library build expects.
+
+### Releases
+
+GitHub Actions ([`.github/workflows/build.yml`](.github/workflows/build.yml)) runs the unit tests and builds all four platforms on every push to `main` and every pull request. Those builds can be downloaded from the run's **Artifacts** section. To publish a release:
+
+1. Bump `"version"` in `plugin.json` (e.g. `2.0.2`). The major number stays 2 to match Rack 2.
+2. Commit, then tag and push: `git tag v2.0.2 && git push origin main v2.0.2`.
+
+The workflow attaches the four `.vcvplugin` files to a new GitHub Release. It refuses to publish if the tag doesn't match `plugin.json`'s version.
 
 ## Creating words and phrases
 

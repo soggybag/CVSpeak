@@ -26,6 +26,8 @@ SOURCES += $(wildcard src/*.cpp)
 DISTRIBUTABLES += res
 DISTRIBUTABLES += $(wildcard LICENSE*)
 
+# Without the SDK the desktop targets below still work (e.g. `make test` in CI).
+ifneq ($(wildcard $(RACK_DIR)/plugin.mk),)
 include $(RACK_DIR)/plugin.mk
 
 # The shared core is C++17; the SDK defaults to C++11.
@@ -33,6 +35,12 @@ CXXFLAGS := $(filter-out -std=c++11,$(CXXFLAGS)) -std=c++17
 ifdef ARCH_MAC
 # Rack SDK targets macOS 10.9; new libc++ warns about it on every file.
 CXXFLAGS += -Wno-\#warnings
+endif
+else
+all dist install dep:
+	@echo "Rack SDK not found at '$(RACK_DIR)'. See readme.md, or set RACK_DIR."; exit 1
+clean:
+	rm -rf build
 endif
 
 # ---- Desktop tools and tests ---------------------------------------------------
