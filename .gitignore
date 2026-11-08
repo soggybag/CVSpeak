@@ -1,13 +1,13 @@
 # Rack SDK (downloaded, not committed — see readme.md)
 sdk/
 
-# Build output
+# Build output (plugin and desktop)
 build/
-vcv/build/
-vcv/dist/
-vcv/plugin.dylib
-vcv/plugin.so
-vcv/plugin.dll
+dist/
+dep/
+plugin.dylib
+plugin.so
+plugin.dll
 *.o
 *.wav
 

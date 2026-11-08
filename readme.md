@@ -51,11 +51,14 @@ Then:
 ```sh
 make test          # run the DSP core's unit tests
 make render        # speak every word into build/render.wav (no Rack needed)
-make vcv           # build the VCV Rack plugin
-make vcv-install   # package it into Rack 2's plugin folder
+make               # build the VCV Rack plugin
+make install       # package it into Rack 2's plugin folder
+make dist          # package dist/CVSpeak-<version>-<os>-<cpu>.vcvplugin to share
 ```
 
-Restart Rack after installing, since Rack only loads plugins at startup. If you'd rather skip packaging while iterating, run `make vcv-link` once. It links Rack's plugin folder to `vcv/`, and after that each change only needs `make vcv` and a Rack restart. Don't mix the two: `make vcv-install` refuses to run while the link exists.
+Restart Rack after installing, since Rack only loads plugins at startup. If you'd rather skip packaging while iterating, run `make vcv-link` once. It links Rack's plugin folder to this repository, and after that each change only needs `make` and a Rack restart. Don't mix the two: `make install` would put a packaged copy next to the link, so use `make vcv-install`, which refuses to run while the link exists.
+
+The repository root is the plugin folder (`plugin.json`, `src/`, `res/`), which is the layout the VCV Library build expects.
 
 ## Creating words and phrases
 
@@ -75,7 +78,7 @@ All of the vocabulary is generated from two text files:
    ```
    Punctuation and capitalization are ignored, and lines starting with `#` are comments.
 2. Run `make words`.
-3. Run `make vcv-install` and restart Rack.
+3. Run `make install` and restart Rack.
 
 `make words` finds every word used in your phrases. It speaks any word that isn't in the bank yet with macOS `say`, encodes everything, and compiles the phrases. You don't have to list words separately.
 
@@ -155,11 +158,11 @@ LPC at 8 kHz is meant to sound robotic, and that's the charm. A few things are n
 | `dsp/` | Shared C++17 DSP core: no Rack or Pico dependencies, float only, no allocation in audio code |
 | `tests/` | Unit tests for the core (`make test`) |
 | `tools/` | Word/phrase sources, encoder, render tool and generation scripts |
-| `vcv/` | The VCV Rack 2 plugin wrapper |
+| `src/`, `res/`, `plugin.json` | The VCV Rack 2 plugin: a thin wrapper around `dsp/`, its panel, and its manifest |
 | `firmware/` | RP2350 firmware (planned) |
 | `hardware/` | KiCad project (planned) |
 | `sdk/` | Rack SDK, downloaded locally and not committed |
 
 ## License
 
-The VCV plugin is declared as GPL-3.0-or-later in [`vcv/plugin.json`](vcv/plugin.json).
+GPL-3.0-or-later. See [LICENSE](LICENSE).

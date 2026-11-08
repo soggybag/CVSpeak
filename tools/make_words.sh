@@ -29,4 +29,4 @@ while IFS=$'\t' read -r name spoken; do
     args+=("$name=$file")
 done < "$OUT_DIR/vocabulary.tsv"
 
-build/lpc_encode dsp/src/words_generated.cpp "${args[@]}"
+build/desktop/lpc_encode dsp/src/words_generated.cpp "${args[@]}"

@@ -1,67 +1,96 @@
-# Desktop build: DSP core tests, render and encoding tools.
+# CVSpeak build. The repository root is the VCV Rack plugin, as the VCV
+# Library build expects; the desktop tools and tests share the same core.
+#
+# VCV Rack plugin (Rack SDK in sdk/Rack-SDK, or set RACK_DIR):
+#   make               build the plugin (plugin.dylib / .so / .dll)
+#   make dist          package dist/CVSpeak-<version>-<os>-<cpu>.vcvplugin
+#   make install       package and copy into Rack's plugin folder (alias: vcv-install)
+#   make vcv-link      symlink this folder into Rack's plugin folder instead (then `make` is enough)
+#   make clean         remove plugin and desktop build output
+#
+# Desktop (DSP core, no Rack needed):
 #   make test          build and run unit tests
 #   make render        speak every word into build/render.wav
-#   make words         regenerate dsp/src/words_generated.cpp from tools/words.txt (macOS `say`)
+#   make words         regenerate dsp/src/words_generated.cpp from tools/words.txt + phrases.txt (macOS)
 #   make phrases       regenerate dsp/src/phrases_generated.cpp from tools/phrases.txt
-#   make vcv           build the VCV Rack plugin (see vcv/Makefile)
-#   make vcv-install   package and copy the plugin into Rack's plugin folder
-#   make vcv-link      symlink vcv/ into Rack's plugin folder instead (then `make vcv` is enough)
 
-CXX ?= clang++
-CXXFLAGS += -std=c++17 -O2 -Wall -Wextra -Wdouble-promotion -Idsp/include
+# ---- VCV Rack plugin ---------------------------------------------------------
+
+RACK_DIR ?= sdk/Rack-SDK
+
+FLAGS += -Idsp/include
+
+# src/dsp_core.cpp compiles the shared core from dsp/src as a unity build.
+SOURCES += $(wildcard src/*.cpp)
+
+DISTRIBUTABLES += res
+DISTRIBUTABLES += $(wildcard LICENSE*)
+
+include $(RACK_DIR)/plugin.mk
+
+# The shared core is C++17; the SDK defaults to C++11.
+CXXFLAGS := $(filter-out -std=c++11,$(CXXFLAGS)) -std=c++17
+ifdef ARCH_MAC
+# Rack SDK targets macOS 10.9; new libc++ warns about it on every file.
+CXXFLAGS += -Wno-\#warnings
+endif
+
+# ---- Desktop tools and tests ---------------------------------------------------
+# Separate flags: Rack's plugin flags (-fPIC, SDK includes) aren't wanted here.
+# Outputs go to build/desktop so they don't mix with the plugin's object files.
+
+DESKTOP_CXX ?= c++
+DESKTOP_CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Wdouble-promotion -Idsp/include -Itools
+DESKTOP := build/desktop
 
 DSP_SRC := $(wildcard dsp/src/*.cpp)
 DSP_HDR := $(wildcard dsp/include/cvspeak/*.h)
 # The encoder produces words_generated.cpp, so it must not link against it.
 ENCODER_SRC := dsp/src/lpc_format.cpp dsp/src/lpc_analysis.cpp
 
-RACK_USER_DIR ?= $(HOME)/Library/Application Support/Rack2
-RACK_PLUGINS := $(RACK_USER_DIR)/plugins-mac-arm64
+RACK_USER_DIR_MAC ?= $(HOME)/Library/Application Support/Rack2
+RACK_PLUGINS := $(RACK_USER_DIR_MAC)/plugins-mac-arm64
 
-.PHONY: all test render words phrases vcv vcv-install vcv-link clean
+.PHONY: desktop test render words phrases vcv vcv-install vcv-link
 
-all: build/tests build/render build/lpc_encode
+desktop: $(DESKTOP)/tests $(DESKTOP)/render $(DESKTOP)/lpc_encode
 
-build:
-	mkdir -p build
+$(DESKTOP)/tests: tests/test_main.cpp $(DSP_SRC) $(DSP_HDR)
+	@mkdir -p $(@D)
+	$(DESKTOP_CXX) $(DESKTOP_CXXFLAGS) -o $@ tests/test_main.cpp $(DSP_SRC)
 
-build/tests: tests/test_main.cpp $(DSP_SRC) $(DSP_HDR) | build
-	$(CXX) $(CXXFLAGS) -Itools -o $@ tests/test_main.cpp $(DSP_SRC)
+$(DESKTOP)/render: tools/render.cpp tools/wav.h $(DSP_SRC) $(DSP_HDR)
+	@mkdir -p $(@D)
+	$(DESKTOP_CXX) $(DESKTOP_CXXFLAGS) -o $@ tools/render.cpp $(DSP_SRC)
 
-build/render: tools/render.cpp tools/wav.h $(DSP_SRC) $(DSP_HDR) | build
-	$(CXX) $(CXXFLAGS) -Itools -o $@ tools/render.cpp $(DSP_SRC)
+$(DESKTOP)/lpc_encode: tools/lpc_encode.cpp tools/wav.h $(ENCODER_SRC) $(DSP_HDR)
+	@mkdir -p $(@D)
+	$(DESKTOP_CXX) $(DESKTOP_CXXFLAGS) -o $@ tools/lpc_encode.cpp $(ENCODER_SRC)
 
-build/lpc_encode: tools/lpc_encode.cpp tools/wav.h $(ENCODER_SRC) $(DSP_HDR) | build
-	$(CXX) $(CXXFLAGS) -Itools -o $@ tools/lpc_encode.cpp $(ENCODER_SRC)
+test: $(DESKTOP)/tests
+	./$(DESKTOP)/tests
 
-test: build/tests
-	./build/tests
+render: $(DESKTOP)/render
+	./$(DESKTOP)/render build/render.wav
 
-render: build/render
-	./build/render build/render.wav
-
-# Word indices can shift when words.txt changes, so phrases are rebuilt too.
-words: build/lpc_encode tools/words.txt tools/phrases.txt tools/make_words.sh tools/make_phrases.py
+# Word indices can shift when the vocabulary changes, so phrases are rebuilt too.
+words: $(DESKTOP)/lpc_encode tools/words.txt tools/phrases.txt tools/make_words.sh tools/make_phrases.py
 	bash tools/make_words.sh
 	python3 tools/make_phrases.py
 
 phrases:
 	python3 tools/make_phrases.py
 
-vcv:
-	$(MAKE) -C vcv
+# Aliases from when the plugin lived in vcv/.
+vcv: all
 
 vcv-install:
 	@if [ -L "$(RACK_PLUGINS)/CVSpeak" ]; then \
-		echo "Rack's CVSpeak folder is a symlink (make vcv-link); just run 'make vcv'."; exit 1; fi
-	$(MAKE) -C vcv install
+		echo "Rack's CVSpeak folder is a symlink (make vcv-link); just run 'make'."; exit 1; fi
+	$(MAKE) install
 
-vcv-link: vcv
+vcv-link: all
 	mkdir -p "$(RACK_PLUGINS)"
 	rm -rf "$(RACK_PLUGINS)/CVSpeak" "$(RACK_PLUGINS)"/CVSpeak-*.vcvplugin
-	ln -s "$(CURDIR)/vcv" "$(RACK_PLUGINS)/CVSpeak"
-	@echo "Linked. From now on: quit Rack, 'make vcv', reopen Rack."
-
-clean:
-	rm -rf build
-	$(MAKE) -C vcv clean
+	ln -s "$(CURDIR)" "$(RACK_PLUGINS)/CVSpeak"
+	@echo "Linked. From now on: quit Rack, 'make', reopen Rack."

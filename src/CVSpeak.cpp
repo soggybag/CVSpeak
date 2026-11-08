@@ -1,6 +1,6 @@
 // VCV Rack wrapper for the CVSpeak DSP core. Keep this thin: map params and
 // ports onto cvspeak::VoiceInputs, detect edges and run the core. All sound
-// logic belongs in ../dsp so the RP2350 firmware gets the same behavior.
+// logic belongs in dsp/ so the RP2350 firmware gets the same behavior.
 
 #include "plugin.hpp"
 #include "cvspeak/sequencer.h"
@@ -105,7 +105,7 @@ std::string SelectQuantity::getDisplayValueString() {
 }
 
 // Stand-in for the hardware's 128x64 OLED. Later this will blit a framebuffer
-// rendered by the shared UI code in ../dsp, so menus look identical on both.
+// rendered by the shared UI code in dsp/, so menus look identical on both.
 struct OledDisplay : LedDisplay {
     CVSpeak* module = nullptr;
 

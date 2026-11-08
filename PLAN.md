@@ -56,7 +56,7 @@ CVSpeak/
   dsp/ui/     shared menu and screens, drawn into a 128x64 1-bit framebuffer
   tests/      unit tests for the core (make test)
   tools/      Python: WAV → LPC encoding, phrases.txt → C++ tables, render-to-WAV test
-  vcv/        VCV Rack plugin wrapper (GPLv3)
+  src/ res/   VCV Rack plugin wrapper and panel (GPLv3); plugin.json + Makefile at the repo root
   firmware/   Pico SDK wrapper: ADC/I2S/GPIO → dsp core
   hardware/   KiCad schematic + PCB + panel
 ```

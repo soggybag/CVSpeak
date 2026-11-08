@@ -7,17 +7,20 @@
   "author": "Mitchell Hudson",
   "authorEmail": "",
   "authorUrl": "",
-  "pluginUrl": "",
-  "manualUrl": "",
-  "sourceUrl": "",
+  "pluginUrl": "https://github.com/soggybag/CVSpeak",
+  "manualUrl": "https://github.com/soggybag/CVSpeak#readme",
+  "sourceUrl": "https://github.com/soggybag/CVSpeak",
   "donateUrl": "",
-  "changelogUrl": "",
+  "changelogUrl": "https://github.com/soggybag/CVSpeak/commits/main",
   "modules": [
     {
       "slug": "CVSpeak",
       "name": "CVSpeak",
       "description": "LPC speech synthesizer with word and phrase modes",
-      "tags": ["Synth voice", "Oscillator"]
+      "tags": [
+        "Synth voice",
+        "Oscillator"
+      ]
     }
   ]
 }
