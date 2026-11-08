@@ -5,18 +5,24 @@
 //   * float only (the Cortex-M33 FPU is single precision; no double math)
 //   * no heap allocation inside process()
 
+#include "cvspeak/lpc_synth.h"
+
 namespace cvspeak {
 
 // Control state for one processing block. Edge detection (Schmitt triggers,
 // debouncing) is the wrapper's job; the core only receives clean events.
 struct VoiceInputs {
-    float pitch = 0.f;    // volts, 1V/oct, 0 V = C4 (VCV Rack convention)
-    bool trig = false;    // rising edge occurred at the start of this block
-    bool reset = false;   // rising edge occurred at the start of this block
+    float pitch = -1.f;      // volts, 1V/oct, 0 V = C4 (VCV Rack convention)
+    float speed = 1.f;       // frame rate multiplier, independent of pitch
+    float intonation = 1.f;  // 0 = monotone, 1 = recorded pitch contour
+    float chirp = 0.5f;      // 0 = clean impulse, 1 = TI-style chirp excitation
+    int word = 0;            // index into kWords, latched on trig
+    bool trig = false;       // rising edge occurred at the start of this block
+    bool reset = false;      // rising edge occurred at the start of this block
 };
 
 struct VoiceOutputs {
-    bool eow = false;     // a word finished during this block
+    bool eow = false;        // a word finished during this block
 };
 
 class Voice {
@@ -26,15 +32,25 @@ public:
     // Render n samples in [-1, 1] into out. Events in `in` apply at sample 0.
     void process(const VoiceInputs& in, float* out, int n, VoiceOutputs& outs);
 
-    bool speaking() const { return env_ > 0.f; }
+    bool speaking() const { return synth_.active(); }
+    int currentWord() const { return word_; }  // last word triggered, -1 if none
 
 private:
-    // Phase 0 placeholder: a decaying sawtooth "word". Replaced by the LPC
-    // engine in Phase 1; the interface above is what stays stable.
+    // RBJ low-pass biquad, removes images left by the 8 kHz -> host rate step.
+    struct Biquad {
+        float b0 = 1.f, b1 = 0.f, b2 = 0.f, a1 = 0.f, a2 = 0.f;
+        float x1 = 0.f, x2 = 0.f, y1 = 0.f, y2 = 0.f;
+        void setLowpass(float cutoffHz, float sampleRate);
+        float process(float x);
+    };
+
+    LpcSynth synth_;
+    Biquad lowpass_;
     float sampleRate_ = 48000.f;
-    float phase_ = 0.f;
-    float env_ = 0.f;
-    float envStep_ = 0.f;
+    float step_ = 8000.f / 48000.f;  // 8 kHz samples per host sample
+    float frac_ = 0.f;
+    float s0_ = 0.f, s1_ = 0.f;      // last two 8 kHz samples
+    int word_ = -1;
 };
 
 }  // namespace cvspeak

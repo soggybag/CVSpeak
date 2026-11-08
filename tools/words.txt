@@ -1,0 +1,32 @@
+# Built-in vocabulary, one word per line. `make words` regenerates
+# dsp/src/words_generated.cpp from this list using macOS `say`.
+zero
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+hello
+I
+am
+a
+robot
+speak
+and
+spell
+say
+it
+again
+you
+are
+correct
+wrong
+the
+computer
+voice
+control
+synthesizer

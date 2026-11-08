@@ -37,7 +37,7 @@ We prototype it as a VCV Rack module first, using a DSP core that is shared with
 - **Display**: 128×64 OLED (1.3" SH1106 or 0.96" SSD1306)
 - **Encoder** (with push) and a **Back/Shift button**
 - **Speak button**: a manual trigger that ORs with TRIG. It's needed to kick-start an EOW → TRIG self-patch, since EOW can't fire until a word has played.
-- **Knobs**: Pitch, Speed, Formant, Bend, Blend. Word/Phrase selection is on the encoder, and its CV is added on top.
+- **Knobs**: Pitch, Speed, Formant, Bend, Blend. Word/Phrase selection is on the encoder, and its CV is added on top. Intonation and Chirp (added in Phase 1) could be knobs or menu settings; decide from VCV play-testing.
 - **Inputs**: Trig, Reset, Word/Phrase CV, Pitch 1V/oct, Speed CV, Formant CV, Bend CV, Carrier In, Mod In
 - **Outputs**: Audio Out, EOW
 
@@ -71,11 +71,13 @@ CVSpeak/
 - VCV plugin skeleton: Trig, Reset, V/Oct, Audio and EOW, plus a stand-in OLED display, all driven by a placeholder buzz voice.
 - ☐ Install VCV Rack 2 Free. The machine currently has Rack 1.1.6, which can't load v2 plugins.
 
-### Phase 1: LPC core
-- TMS5220-style LPC decoder: frame parsing, lattice filter, excitation.
-- Encode about 20 test words with python_wizard or BlueWizard. Use our own recordings, not TI ROM data.
-- Pitch and speed controls, plus the EOW event.
-- ✅ Done when: words render to WAV, and pitch and speed change independently.
+### Phase 1: LPC core ✅ (2026-11-07)
+- TMS5220-style bitstream (`dsp/include/cvspeak/lpc_format.h`): 4-bit energy, 6-bit pitch, repeat flag, K1–K10 at 5/5/4/4/4/4/4/3/3/3 bits, and unvoiced frames carry only K1–K4. The quantization tables are our own (arcsine-spaced K, log-spaced energy and pitch), not TI's.
+- Decoder (`LpcSynth`): runs at 8 kHz with 25 ms frames, interpolates parameters per sample, and uses a 10-pole lattice filter, de-emphasis and a DC blocker. Voice resamples to the host rate with a 3.6 kHz anti-image low-pass.
+- Our own encoder (`tools/lpc_encode`) shares the format and analysis code with the decoder. `make words` speaks `tools/words.txt` with macOS `say` (voice "Reed", 150 wpm) and writes `dsp/src/words_generated.cpp`: 30 words in about 3 KB.
+- Controls: Pitch (1V/oct; word median → V/Oct), Speed (0.25–4×, independent of pitch), **Intonation** (0 = monotone, 1 = recorded contour), **Chirp** (impulse ↔ TI-style chirp excitation, loudness-normalized).
+- Verified: 12 unit tests. Decoded loudness is within about 1.3 dB of the originals on average (worst case 3 dB) at the default Chirp of 0.5, and the frame-loudness envelope tracks the originals (correlation 0.67–0.99).
+- Not done yet: a TI-compatible table mode, so existing TMS5220 LPC data could be played.
 
 ### Phase 2: Modes and sequencer
 - Word mode and Phrase mode, with reset and retrigger behavior.

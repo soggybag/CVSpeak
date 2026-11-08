@@ -6,7 +6,15 @@
 #include "cvspeak/voice.h"
 
 struct CVSpeak : Module {
-    enum ParamId { PITCH_PARAM, SPEAK_PARAM, PARAMS_LEN };
+    enum ParamId {
+        PITCH_PARAM,
+        SPEAK_PARAM,
+        WORD_PARAM,
+        SPEED_PARAM,
+        INTONATION_PARAM,
+        CHIRP_PARAM,
+        PARAMS_LEN
+    };
     enum InputId { TRIG_INPUT, RESET_INPUT, VOCT_INPUT, INPUTS_LEN };
     enum OutputId { AUDIO_OUTPUT, EOW_OUTPUT, OUTPUTS_LEN };
     enum LightId { SPEAKING_LIGHT, LIGHTS_LEN };
@@ -17,8 +25,13 @@ struct CVSpeak : Module {
 
     CVSpeak() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-        configParam(PITCH_PARAM, -2.f, 2.f, 0.f, "Pitch", " Hz", 2.f, dsp::FREQ_C4);
+        configParam(PITCH_PARAM, -2.f, 2.f, -1.f, "Pitch", " Hz", 2.f, dsp::FREQ_C4);
         configButton(SPEAK_PARAM, "Speak (manual trigger)");
+        configParam(WORD_PARAM, 0.f, static_cast<float>(cvspeak::kNumWords - 1), 0.f, "Word");
+        getParamQuantity(WORD_PARAM)->snapEnabled = true;
+        configParam(SPEED_PARAM, -2.f, 2.f, 0.f, "Speed", "x", 2.f);
+        configParam(INTONATION_PARAM, 0.f, 1.f, 1.f, "Intonation (0 = monotone)", "%", 0.f, 100.f);
+        configParam(CHIRP_PARAM, 0.f, 1.f, 0.5f, "Chirp (excitation character)", "%", 0.f, 100.f);
         configInput(TRIG_INPUT, "Trigger (speak next word)");
         configInput(RESET_INPUT, "Reset (back to first word)");
         configInput(VOCT_INPUT, "Pitch (1V/oct)");
@@ -40,6 +53,10 @@ struct CVSpeak : Module {
         in.trig = jackTrig || buttonTrig;
         in.reset = resetIn.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f);
         in.pitch = params[PITCH_PARAM].getValue() + inputs[VOCT_INPUT].getVoltage();
+        in.word = static_cast<int>(params[WORD_PARAM].getValue());
+        in.speed = std::exp2(params[SPEED_PARAM].getValue());
+        in.intonation = params[INTONATION_PARAM].getValue();
+        in.chirp = params[CHIRP_PARAM].getValue();
 
         float sample;
         cvspeak::VoiceOutputs outs;
@@ -63,21 +80,55 @@ struct OledDisplay : LedDisplay {
                 APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
             if (font) {
                 nvgFontFaceId(args.vg, font->handle);
-                nvgFontSize(args.vg, 13.f);
                 nvgFillColor(args.vg, nvgRGB(0x9f, 0xe7, 0xff));
                 nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
-                nvgText(args.vg, 6.f, 6.f, "CVSPEAK", nullptr);
-                nvgText(args.vg, 6.f, 24.f, "MODE  WORD", nullptr);
+
+                // Selected word (what TRIG will say) and the word being spoken.
+                int selected = 0;
+                if (module) selected = static_cast<int>(module->params[CVSpeak::WORD_PARAM].getValue());
                 const bool speaking = module && module->voice.speaking();
-                nvgText(args.vg, 6.f, 42.f, speaking ? "> SPEAKING" : "  idle", nullptr);
+                const int current = module ? module->voice.currentWord() : -1;
+
+                nvgFontSize(args.vg, 11.f);
+                nvgText(args.vg, 6.f, 5.f,
+                        string::f("WORD %02d/%02d", selected + 1, cvspeak::kNumWords).c_str(), nullptr);
+                nvgFontSize(args.vg, 20.f);
+                nvgText(args.vg, 6.f, 20.f, cvspeak::kWords[selected].name, nullptr);
+                nvgFontSize(args.vg, 11.f);
+                if (speaking && current >= 0) {
+                    nvgText(args.vg, 6.f, 60.f,
+                            string::f("> %s", cvspeak::kWords[current].name).c_str(), nullptr);
+                }
             }
         }
         LedDisplay::drawLayer(args, layer);
     }
 };
 
+// Temporary text labels until the Phase 3 panel artwork (Rack's SVG renderer
+// ignores <text>, so final labels will be paths in the SVG).
+struct PanelLabel : Widget {
+    std::string text;
+    void draw(const DrawArgs& args) override {
+        std::shared_ptr<window::Font> font =
+            APP->window->loadFont(asset::system("res/fonts/DejaVuSans.ttf"));
+        if (!font) return;
+        nvgFontFaceId(args.vg, font->handle);
+        nvgFontSize(args.vg, 8.f);
+        nvgFillColor(args.vg, nvgRGB(0x33, 0x33, 0x33));
+        nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM);
+        nvgText(args.vg, 0.f, 0.f, text.c_str(), nullptr);
+    }
+};
+
 // Layout in mm on a 14 HP (71.12 mm) panel. Placeholder until the Phase 3 panel.
 struct CVSpeakWidget : ModuleWidget {
+    void label(float xMm, float yMm, const char* text) {
+        auto* l = createWidget<PanelLabel>(mm2px(Vec(xMm, yMm)));
+        l->text = text;
+        addChild(l);
+    }
+
     explicit CVSpeakWidget(CVSpeak* module) {
         setModule(module);
         setPanel(createPanel(asset::plugin(pluginInstance, "res/CVSpeak.svg")));
@@ -92,18 +143,34 @@ struct CVSpeakWidget : ModuleWidget {
         display->box.size = mm2px(Vec(55.f, 27.5f));  // 2:1, like a 128x64 OLED
         display->module = module;
         addChild(display);
+        addChild(createLightCentered<SmallLight<GreenLight>>(
+            mm2px(Vec(60.5f, 36.5f)), module, CVSpeak::SPEAKING_LIGHT));
 
-        addChild(createLightCentered<MediumLight<GreenLight>>(
-            mm2px(Vec(60.f, 46.f)), module, CVSpeak::SPEAKING_LIGHT));
-        addParam(createParamCentered<RoundBigBlackKnob>(
-            mm2px(Vec(35.56f, 60.f)), module, CVSpeak::PITCH_PARAM));
+        // Knobs
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.f, 54.f)), module, CVSpeak::WORD_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(35.56f, 54.f)), module, CVSpeak::PITCH_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(57.12f, 54.f)), module, CVSpeak::SPEED_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.f, 76.f)), module, CVSpeak::INTONATION_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(35.56f, 76.f)), module, CVSpeak::CHIRP_PARAM));
+        label(14.f, 47.f, "WORD");
+        label(35.56f, 47.f, "PITCH");
+        label(57.12f, 47.f, "SPEED");
+        label(14.f, 69.f, "INTONE");
+        label(35.56f, 69.f, "CHIRP");
 
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(12.f, 114.f)), module, CVSpeak::SPEAK_PARAM));
+        // Jacks
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.f, 100.f)), module, CVSpeak::TRIG_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(27.7f, 100.f)), module, CVSpeak::RESET_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(43.4f, 100.f)), module, CVSpeak::VOCT_INPUT));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(12.f, 114.f)), module, CVSpeak::SPEAK_PARAM));
         addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(43.4f, 114.f)), module, CVSpeak::EOW_OUTPUT));
         addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(59.1f, 114.f)), module, CVSpeak::AUDIO_OUTPUT));
+        label(12.f, 95.f, "TRIG");
+        label(27.7f, 95.f, "RESET");
+        label(43.4f, 95.f, "V/OCT");
+        label(12.f, 109.5f, "SPEAK");
+        label(43.4f, 109.f, "EOW");
+        label(59.1f, 109.f, "OUT");
     }
 };
 
