@@ -170,6 +170,28 @@ static void testEveryWordDecodesCleanly() {
     }
 }
 
+// Regression: loud frames with a vowel-like spectrum (K1 well below zero)
+// must not be encoded as unvoiced, or they play as noise bursts. This used to
+// happen on fast pitch glides ("are", "five", "I", "hello"...).
+static void testNoVowelNoiseBursts() {
+    int bad = 0;
+    for (int w = 0; w < kNumWords; ++w) {
+        lpc::BitReader r(kWords[w].data, kWords[w].bytes);
+        lpc::FrameCodes f;
+        float k1 = 0.f;
+        int frame = 0;
+        while (lpc::readFrame(r, f) && f.energy != lpc::kEnergyStop) {
+            if (f.energy != lpc::kEnergySilent && !f.repeat) k1 = lpc::kValue(0, f.k[0]);
+            if (f.energy >= 7 && f.pitch == 0 && k1 < -0.4f) {
+                std::printf("  %s frame %d: loud vowel-like frame is unvoiced\n", kWords[w].name, frame);
+                ++bad;
+            }
+            ++frame;
+        }
+    }
+    CHECK(bad == 0);
+}
+
 static void testSpeedChangesDurationNotPitch() {
     const int w = findWord("SYNTHESIZER");
     CHECK(w >= 0);
@@ -409,6 +431,7 @@ int main() {
         {"Levinson inverts lattice", testLevinsonInvertsLattice},
         {"pitch detector", testPitchDetector},
         {"every word decodes cleanly", testEveryWordDecodesCleanly},
+        {"no vowel noise bursts", testNoVowelNoiseBursts},
         {"speed changes duration, not pitch", testSpeedChangesDurationNotPitch},
         {"monotone pitch follows V/Oct", testMonotonePitchFollowsVoct},
         {"chirp keeps loudness", testChirpKeepsLoudness},
