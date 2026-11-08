@@ -47,7 +47,7 @@ Decisions made with Mitchell for the first board (dev board v0). The VCV plugin 
 | V/OCT | The same stage with ±5 V → 3.3..0 V and 0.1 % resistors. Direct to ADC0. |
 | Gates (TRIG, RESET) | MMBT3904 inverter: 100k series, 100k to ground (about 1.2 V threshold), 1N4148W base clamp, 10k pull-up to 3V3. Passes 1 kHz trains. Firmware applies RESET before TRIG in the same tick. |
 | EOW out | GPIO → ×2.8 non-inverting stage → 0 / 9.2 V, then 1k. Firmware makes a **5–10 ms** pulse (VCV uses 1 ms). |
-| Carrier insertion detect | The Carrier jack's switch (TN) is sensed through a spare mux channel, so firmware knows when the jack is patched. An unpatched input must not be boosted by the level follower. Exact circuit (pull-up on TN, or a Palimpsest-style probe) to settle in the schematic. |
+| Carrier insertion detect | The Carrier jack's switch lug (TN) has a 1M pull-up to 3V3A and 100n to ground, and goes to mux B X5. Unpatched, TN touches the tip, which sits at 0 V through the 100k input resistor, so it reads about 0.3 V. Patched, the plug lifts TN and it reads 3.3 V. Firmware threshold: 2.5 V. |
 | Pots and slow CVs | **Two 74HC4051** on 3V3A share one set of select lines (GP12–14). Mux A has the 6 pots plus BACK and encoder push. Mux B has 4 CVs plus SPEAK, Carrier detect and 2 spares. Buttons on mux channels read 0 or 3V3A through a pull-up; a 1 kHz scan is plenty for them. |
 | Power | 2×5 Eurorack header; 1N5819WS in series with each rail; 10u + 100n per rail. AP63205 buck, 12 V → 5 V. The 5 V goes to the Pico 2's VSYS through a Schottky diode, as the Pico datasheet recommends (USB can be plugged in at the same time). The 3V3A LDO also runs from the 5 V. Op-amps run on ±12 V. |
 | Test points | Palimpsest style: the rails, 5 V, 3V3, 3V3A, CV bias, every ADC pin, codec in and out, I2S, MCLK, gates. Two GND through-holes for a scope ground. |
@@ -58,11 +58,28 @@ Decisions made with Mitchell for the first board (dev board v0). The VCV plugin 
 - ADC pins: the Pico 2 brings out GPIO26–28 (ADC0–2); ADC3 is used for VSYS sensing on the module.
 - PIO: I2S in and out on one state machine pair, with BCLK and LRCK on adjacent pins (GP18, GP19) for the PIO `wait` instructions.
 
+## 2026-11-07: schematic v0.0
+
+Drawn by `hardware/scripts/build_sch.py` (`make schematic`), with the same scripted flow as Palimpsest. ERC: no errors; one warning for the OLED footprint, which waits for the module measurements.
+
+| Topic | Decision |
+|---|---|
+| 3V3A LDO | **LP5907MFX-3.3** (SOT-23-5, 250 mA, about 6.5 µVrms), 1u in, 1u + 10u out. LCSC number still to pick. |
+| Codec references | VREF, ADCVREF and VMID each get 10u + 100n. Each supply pin (DVDD, PVDD, AVDD, HPVDD) gets 10u + 100n. All four ground pins (DGND, AGND, HPGND, EPAD) tie together under the chip. |
+| MCLK | 33R in series, placed at the Pico. |
+| Audio out gain | 20k in, 68k feedback: ×−3.4, so DAC full scale gives 9.6 Vpp. |
+| V/OCT bias | 3V3A × 12k / 32k = 1.24 V, so 0 V reads mid-scale (1.65 V). |
+| Encoder | 10k pull-ups and 10n to ground on A and B (0.1 ms debounce), as well as the internal pull-ups. |
+| Spare op-amps | U4 units C and D: followers to ground. |
+| Mux B spares | X6 and X7: 100k to ground, plus test pads. |
+| Pico symbol | A project copy of KiCad's `RaspberryPi_Pico` named `Pico2`, with GND and AGND retyped as power inputs. |
+
 ## Still open
 
-- 3V3A LDO part. It must be low-noise, in stock at JLC, and preferably a Basic part. Check LCSC.
-- Carrier-detect circuit (see the table).
-- OLED module measurements, then its footprint.
+- LP5907MFX-3.3 LCSC part and stock, or another low-noise 3.3 V LDO in SOT-23-5.
+- ES8388 reference caps: check them against the datasheet's application figure (it's an image, so it isn't in the extracted text).
+- OLED module measurements, then the `CVSpeak:OLED_SH1106_1.3in_SPI_7pin` footprint.
+- LCSC numbers marked NEW in `build_sch.py` (68k, 1M, 33R, 10n): check them.
 - LCSC numbers and stock for each new part, on the day of the order.
 - Current budget, to measure: expected about 40 mA on +12 V (through the buck) and 20–30 mA on −12 V.
 
@@ -76,4 +93,6 @@ Palimpsest v0.2 uses the same power, CV, gate and output blocks. Bench them ther
 
 Anything we learn changes this file before the CVSpeak schematic is drawn.
 
-In parallel, firmware bring-up can start on a bare Pico 2 with an **ES8388 breakout module** (cheap, widely sold), the 1.3" OLED and an encoder on a breadboard. That proves I2C setup, 12 MHz MCLK, I2S both ways, and the CPU budget at Formant +1.5 octaves, before the PCB is ordered.
+In parallel, firmware bring-up can start on a bare Pico 2 with an ES8388 breakout module, the 1.3" OLED and an encoder on a breadboard. That proves I2C setup, 12 MHz MCLK, I2S both ways, and the CPU budget at Formant +1.5 octaves, before the PCB is ordered.
+
+**ES8388 breakouts are hard to find (2026-11-07).** Plan: skip the breakout. The dev board puts the codec on the PCB with test points on I2C, I2S, MCLK and the codec's analog pins, and JLC assembles it. Until then the breadboard can still check the OLED, the encoder, the buttons and the CPU load (USB serial prints core 1's load even with no codec answering).

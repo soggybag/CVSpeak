@@ -16,5 +16,7 @@ hardware/**/*-backups/
 hardware/**/*.lck
 hardware/**/fp-info-cache
 hardware/**/*.kicad_prl
+hardware/*.rpt
+hardware/scripts/__pycache__/
 
 .DS_Store

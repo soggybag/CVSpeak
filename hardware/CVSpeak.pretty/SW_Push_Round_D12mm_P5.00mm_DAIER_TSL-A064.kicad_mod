@@ -1,0 +1,33 @@
+(footprint "SW_Push_Round_D12mm_P5.00mm_DAIER_TSL-A064"
+	(version 20241229)
+	(generator "claude")
+	(layer "F.Cu")
+	(descr "Round 12 mm push button, 9 mm cap, 4 pins on 5.00 x 5.00 mm (DAIER TSL-A064, Tayda A-8796; same layout as E-Switch KS01Q01). Pins 1-2 and 3-4 are joined inside, so only the DIAGONAL pads 1 and 2 here are wired: works in any orientation. Origin = body centre")
+	(tags "push button round 12mm tact DAIER TSL-A064 KS01Q01")
+	(property "Reference" "REF**" (at 0 -7.5 0) (layer "F.SilkS") (uuid "6b91bfa3-b674-451d-bfed-2623eda7ddae") (effects (font (size 1 1) (thickness 0.15))))
+	(property "Value" "SW_Push_Round_D12mm" (at 0 7.5 0) (layer "F.Fab") (uuid "d532a59e-8862-4863-ac76-96ec8a3bf599") (effects (font (size 1 1) (thickness 0.15))))
+	(property "Footprint" "" (at 0 0 0) (layer "F.Fab") (hide yes) (uuid "9f44019c-86db-42cf-926b-1536f2b29649") (effects (font (size 1.27 1.27) (thickness 0.15))))
+	(property "Datasheet" "https://www.taydaelectronics.com/datasheets/files/small_tact_switch.pdf" (at 0 0 0) (layer "F.Fab") (hide yes) (uuid "cddf7e60-a523-404e-b856-521fd858d213") (effects (font (size 1.27 1.27) (thickness 0.15))))
+	(attr through_hole)
+	(fp_arc (start 5.4 -2.615) (mid -6 0) (end 5.4 2.615) (stroke (width 0.1) (type solid)) (layer "F.Fab") (uuid "a6465c76-10e9-4756-b824-d1041046aef4"))
+	(fp_line (start 5.4 -2.615) (end 5.4 2.615) (stroke (width 0.1) (type solid)) (layer "F.Fab") (uuid "bf349675-d24b-4ecf-b66d-adc1a3fd2cc4"))
+	(fp_circle (center 0 0) (end 4.5 0) (stroke (width 0.1) (type solid)) (fill no) (layer "F.Fab") (uuid "82341ced-d832-49fd-bb68-8aed293323f5"))
+	(fp_arc (start 5.52 -2.75) (mid -6.12 0) (end 5.52 2.75) (stroke (width 0.12) (type solid)) (layer "F.SilkS") (uuid "28dd6643-0916-4747-8156-db34422fa781"))
+	(fp_line (start 5.52 -2.75) (end 5.52 2.75) (stroke (width 0.12) (type solid)) (layer "F.SilkS") (uuid "bdea558d-b41e-4371-9489-9fbaa1b072f9"))
+	(fp_circle (center 0 0) (end 6.25 0) (stroke (width 0.05) (type solid)) (fill no) (layer "F.CrtYd") (uuid "414e7308-42f6-4510-ac7c-0d4790ca91e1"))
+	(pad "1" thru_hole rect (at -2.5 -2.5) (size 2 2) (drill 1.1) (layers "*.Cu" "*.Mask") (uuid "09630b2f-1d87-4739-b775-77388e9d6521"))
+	(pad "" thru_hole circle (at 2.5 -2.5) (size 2 2) (drill 1.1) (layers "*.Cu" "*.Mask") (uuid "26121e38-687b-46c8-b364-2f9a0a3f33b1"))
+	(pad "" thru_hole circle (at -2.5 2.5) (size 2 2) (drill 1.1) (layers "*.Cu" "*.Mask") (uuid "acbeb160-bbce-4de3-bccd-5dbdd83589c3"))
+	(pad "2" thru_hole circle (at 2.5 2.5) (size 2 2) (drill 1.1) (layers "*.Cu" "*.Mask") (uuid "7eb161f1-94fc-418b-b906-9cdb0deee4bd"))
+	(model "${KIPRJMOD}/3dmodels/SW_Push_Round_D12mm_DAIER_TSL-A064.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

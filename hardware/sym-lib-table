@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "CVSpeak")(type "KiCad")(uri "${KIPRJMOD}/CVSpeak.kicad_sym")(options "")(descr "CVSpeak project symbols"))
+)

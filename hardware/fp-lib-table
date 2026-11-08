@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "CVSpeak")(type "KiCad")(uri "${KIPRJMOD}/CVSpeak.pretty")(options "")(descr "CVSpeak project footprints"))
+)

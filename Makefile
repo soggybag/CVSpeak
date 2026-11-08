@@ -18,6 +18,9 @@
 # Firmware (Pico SDK in sdk/pico-sdk, see firmware/README.md):
 #   make firmware      build build/firmware/cvspeak.uf2
 #   make firmware-breadboard  same for a bare Pico 2 (build/firmware-breadboard/cvspeak.uf2)
+#
+# Hardware (KiCad 10, kicad-cli):
+#   make schematic     regenerate hardware/CVSpeak.kicad_sch from hardware/scripts/build_sch.py, then run ERC
 #   make words         regenerate dsp/src/words_generated.cpp from tools/words.txt + phrases.txt (macOS)
 #   make phrases       regenerate dsp/src/phrases_generated.cpp from tools/phrases.txt
 
@@ -66,7 +69,7 @@ ENCODER_SRC := dsp/src/lpc_format.cpp dsp/src/lpc_analysis.cpp
 RACK_USER_DIR_MAC ?= $(HOME)/Library/Application Support/Rack2
 RACK_PLUGINS := $(RACK_USER_DIR_MAC)/plugins-mac-arm64
 
-.PHONY: desktop test render screens panel panel-preview firmware firmware-breadboard words phrases vcv vcv-install vcv-link
+.PHONY: desktop test render screens panel panel-preview schematic firmware firmware-breadboard words phrases vcv vcv-install vcv-link
 
 desktop: $(DESKTOP)/tests $(DESKTOP)/render $(DESKTOP)/lpc_encode $(DESKTOP)/ui_preview
 
@@ -113,6 +116,11 @@ firmware-breadboard:
 
 panel:
 	python3 tools/make_panel.py
+
+KICAD_CLI ?= /Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli
+schematic:
+	cd hardware && python3 scripts/make_symbols.py && python3 scripts/build_sch.py
+	cd hardware && $(KICAD_CLI) sch erc --exit-code-violations --severity-error -o build-erc.rpt CVSpeak.kicad_sch
 
 panel-preview:
 	python3 tools/make_panel.py --preview
