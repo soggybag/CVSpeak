@@ -90,12 +90,33 @@ static void testPitchIsOneVoltPerOctave() {
     CHECK(std::abs(c1 - 2 * c0) <= 1);   // +1 V = one octave up
 }
 
+// EOW patched back into TRIG (one-sample cable delay, as in Rack): after one
+// kick-start trigger the voice must keep speaking word after word.
+static void testEowToTrigLoopSustains() {
+    cvspeak::Voice v;
+    v.setSampleRate(kRate);
+    cvspeak::VoiceInputs in;
+    cvspeak::VoiceOutputs outs;
+    in.trig = true;  // the SPEAK button press
+    int eows = 0, silentSamples = 0;
+    for (int i = 0; i < 2 * kRate; ++i) {
+        float s;
+        v.process(in, &s, 1, outs);
+        in.trig = outs.eow;  // the patch cable
+        eows += outs.eow;
+        if (!v.speaking()) ++silentSamples;
+    }
+    CHECK(eows == 5);              // 2 s / 0.4 s per placeholder word
+    CHECK(silentSamples <= eows);  // at most one gap sample per word boundary
+}
+
 int main() {
     struct { const char* name; void (*fn)(); } tests[] = {
         {"silent until triggered", testSilentUntilTriggered},
         {"trigger speaks, EOW fires once", testTriggerSpeaksAndEowFiresOnce},
         {"reset silences", testResetSilences},
         {"pitch is 1V/oct", testPitchIsOneVoltPerOctave},
+        {"EOW -> TRIG loop sustains", testEowToTrigLoopSustains},
     };
     for (auto& t : tests) {
         const int before = g_failures;

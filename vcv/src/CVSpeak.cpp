@@ -6,18 +6,19 @@
 #include "cvspeak/voice.h"
 
 struct CVSpeak : Module {
-    enum ParamId { PITCH_PARAM, PARAMS_LEN };
+    enum ParamId { PITCH_PARAM, SPEAK_PARAM, PARAMS_LEN };
     enum InputId { TRIG_INPUT, RESET_INPUT, VOCT_INPUT, INPUTS_LEN };
     enum OutputId { AUDIO_OUTPUT, EOW_OUTPUT, OUTPUTS_LEN };
     enum LightId { SPEAKING_LIGHT, LIGHTS_LEN };
 
     cvspeak::Voice voice;
-    dsp::SchmittTrigger trigIn, resetIn;
+    dsp::SchmittTrigger trigIn, resetIn, speakButton;
     dsp::PulseGenerator eowPulse;
 
     CVSpeak() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
         configParam(PITCH_PARAM, -2.f, 2.f, 0.f, "Pitch", " Hz", 2.f, dsp::FREQ_C4);
+        configButton(SPEAK_PARAM, "Speak (manual trigger)");
         configInput(TRIG_INPUT, "Trigger (speak next word)");
         configInput(RESET_INPUT, "Reset (back to first word)");
         configInput(VOCT_INPUT, "Pitch (1V/oct)");
@@ -33,7 +34,10 @@ struct CVSpeak : Module {
     void process(const ProcessArgs& args) override {
         cvspeak::VoiceInputs in;
         // Rack's convention: rising edge above ~1 V, re-armed below ~0.1 V.
-        in.trig = trigIn.process(inputs[TRIG_INPUT].getVoltage(), 0.1f, 1.f);
+        // The button ORs with the jack, so it can kick-start an EOW -> TRIG loop.
+        const bool jackTrig = trigIn.process(inputs[TRIG_INPUT].getVoltage(), 0.1f, 1.f);
+        const bool buttonTrig = speakButton.process(params[SPEAK_PARAM].getValue());
+        in.trig = jackTrig || buttonTrig;
         in.reset = resetIn.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f);
         in.pitch = params[PITCH_PARAM].getValue() + inputs[VOCT_INPUT].getVoltage();
 
@@ -94,6 +98,7 @@ struct CVSpeakWidget : ModuleWidget {
         addParam(createParamCentered<RoundBigBlackKnob>(
             mm2px(Vec(35.56f, 60.f)), module, CVSpeak::PITCH_PARAM));
 
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(12.f, 114.f)), module, CVSpeak::SPEAK_PARAM));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.f, 100.f)), module, CVSpeak::TRIG_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(27.7f, 100.f)), module, CVSpeak::RESET_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(43.4f, 100.f)), module, CVSpeak::VOCT_INPUT));

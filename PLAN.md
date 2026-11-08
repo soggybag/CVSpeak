@@ -36,6 +36,7 @@ We prototype it as a VCV Rack module first, using a DSP core that is shared with
 ## 2. Panel I/O draft (14 HP)
 - **Display**: 128×64 OLED (1.3" SH1106 or 0.96" SSD1306)
 - **Encoder** (with push) and a **Back/Shift button**
+- **Speak button**: a manual trigger that ORs with TRIG. It's needed to kick-start an EOW → TRIG self-patch, since EOW can't fire until a word has played.
 - **Knobs**: Pitch, Speed, Formant, Bend, Blend. Word/Phrase selection is on the encoder, and its CV is added on top.
 - **Inputs**: Trig, Reset, Word/Phrase CV, Pitch 1V/oct, Speed CV, Formant CV, Bend CV, Carrier In, Mod In
 - **Outputs**: Audio Out, EOW
