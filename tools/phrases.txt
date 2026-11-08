@@ -1,7 +1,7 @@
 # Phrase banks for Phrase mode, one phrase per line. Each TRIG speaks the
-# next word; RESET goes back to the first. Words must exist in words.txt.
-# `make phrases` regenerates dsp/src/phrases_generated.cpp from this file.
-hello I am a robot
+# next word; RESET goes back to the first. Punctuation is ignored.
+# After editing, run `make words`: it speaks any new words and rebuilds the
+# phrases. (`make phrases` alone is enough if you added no new words.)
 I am a computer voice
 speak and spell
 say it again
@@ -12,3 +12,6 @@ nine eight seven six five four three two one zero
 hello computer say it again
 I am the voice control synthesizer
 hello I am a computer you are a robot say it again and again
+The world is indeed comic, but the joke is on mankind
+The oldest and strongest emotion of mankind is fear, and the oldest and strongest kind of fear is fear of the unknown
+at the mountains of madness nyarlathotep Cthulhu knows

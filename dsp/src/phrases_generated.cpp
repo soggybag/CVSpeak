@@ -4,34 +4,38 @@
 namespace cvspeak {
 
 namespace {
-const uint16_t kPhrase0[] = {10, 11, 12, 13, 14};  // HELLO I AM A ROBOT
-const uint16_t kPhrase1[] = {11, 12, 13, 26, 27};  // I AM A COMPUTER VOICE
-const uint16_t kPhrase2[] = {15, 16, 17};  // SPEAK AND SPELL
-const uint16_t kPhrase3[] = {18, 19, 20};  // SAY IT AGAIN
-const uint16_t kPhrase4[] = {21, 22, 23};  // YOU ARE CORRECT
-const uint16_t kPhrase5[] = {21, 22, 24};  // YOU ARE WRONG
-const uint16_t kPhrase6[] = {1, 2, 3, 4};  // ONE TWO THREE FOUR
-const uint16_t kPhrase7[] = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // NINE EIGHT SEVEN SIX FIVE FOUR THREE TWO ONE ZERO
-const uint16_t kPhrase8[] = {10, 26, 18, 19, 20};  // HELLO COMPUTER SAY IT AGAIN
-const uint16_t kPhrase9[] = {11, 12, 25, 27, 28, 29};  // I AM THE VOICE CONTROL SYNTHESIZER
-const uint16_t kPhrase10[] = {10, 11, 12, 13, 26, 21, 22, 13, 14, 18, 19, 20, 16, 20};  // HELLO I AM A COMPUTER YOU ARE A ROBOT SAY IT AGAIN AND AGAIN
+const uint16_t kPhrase0[] = {11, 12, 13, 26, 27};  // I AM A COMPUTER VOICE
+const uint16_t kPhrase1[] = {15, 16, 17};  // SPEAK AND SPELL
+const uint16_t kPhrase2[] = {18, 19, 20};  // SAY IT AGAIN
+const uint16_t kPhrase3[] = {21, 22, 23};  // YOU ARE CORRECT
+const uint16_t kPhrase4[] = {21, 22, 24};  // YOU ARE WRONG
+const uint16_t kPhrase5[] = {1, 2, 3, 4};  // ONE TWO THREE FOUR
+const uint16_t kPhrase6[] = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // NINE EIGHT SEVEN SIX FIVE FOUR THREE TWO ONE ZERO
+const uint16_t kPhrase7[] = {10, 26, 18, 19, 20};  // HELLO COMPUTER SAY IT AGAIN
+const uint16_t kPhrase8[] = {11, 12, 25, 27, 28, 29};  // I AM THE VOICE CONTROL SYNTHESIZER
+const uint16_t kPhrase9[] = {10, 11, 12, 13, 26, 21, 22, 13, 14, 18, 19, 20, 16, 20};  // HELLO I AM A COMPUTER YOU ARE A ROBOT SAY IT AGAIN AND AGAIN
+const uint16_t kPhrase10[] = {25, 32, 33, 34, 35, 36, 25, 37, 33, 38, 39};  // THE WORLD IS INDEED COMIC BUT THE JOKE IS ON MANKIND
+const uint16_t kPhrase11[] = {25, 40, 16, 41, 42, 43, 39, 33, 44, 16, 25, 40, 16, 41, 45, 43, 44, 33, 44, 43, 25, 46};  // THE OLDEST AND STRONGEST EMOTION OF MANKIND IS FEAR AND THE OLDEST AND STRONGEST KIND OF FEAR IS FEAR OF THE UNKNOWN
+const uint16_t kPhrase12[] = {47, 25, 48, 43, 49, 30, 31, 50};  // AT THE MOUNTAINS OF MADNESS NYARLATHOTEP CTHULHU KNOWS
 
 }  // namespace
 
 const Phrase kPhrases[] = {
-    {"HELLO I AM A ROBOT", kPhrase0, 5},
-    {"I AM A COMPUTER VOICE", kPhrase1, 5},
-    {"SPEAK AND SPELL", kPhrase2, 3},
-    {"SAY IT AGAIN", kPhrase3, 3},
-    {"YOU ARE CORRECT", kPhrase4, 3},
-    {"YOU ARE WRONG", kPhrase5, 3},
-    {"ONE TWO THREE FOUR", kPhrase6, 4},
-    {"NINE EIGHT SEVEN SIX FIVE FOUR THREE TWO ONE ZERO", kPhrase7, 10},
-    {"HELLO COMPUTER SAY IT AGAIN", kPhrase8, 5},
-    {"I AM THE VOICE CONTROL SYNTHESIZER", kPhrase9, 6},
-    {"HELLO I AM A COMPUTER YOU ARE A ROBOT SAY IT AGAIN AND AGAIN", kPhrase10, 14},
+    {"I AM A COMPUTER VOICE", kPhrase0, 5},
+    {"SPEAK AND SPELL", kPhrase1, 3},
+    {"SAY IT AGAIN", kPhrase2, 3},
+    {"YOU ARE CORRECT", kPhrase3, 3},
+    {"YOU ARE WRONG", kPhrase4, 3},
+    {"ONE TWO THREE FOUR", kPhrase5, 4},
+    {"NINE EIGHT SEVEN SIX FIVE FOUR THREE TWO ONE ZERO", kPhrase6, 10},
+    {"HELLO COMPUTER SAY IT AGAIN", kPhrase7, 5},
+    {"I AM THE VOICE CONTROL SYNTHESIZER", kPhrase8, 6},
+    {"HELLO I AM A COMPUTER YOU ARE A ROBOT SAY IT AGAIN AND AGAIN", kPhrase9, 14},
+    {"THE WORLD IS INDEED COMIC BUT THE JOKE IS ON MANKIND", kPhrase10, 11},
+    {"THE OLDEST AND STRONGEST EMOTION OF MANKIND IS FEAR AND THE OLDEST AND STRONGEST KIND OF FEAR IS FEAR OF THE UNKNOWN", kPhrase11, 22},
+    {"AT THE MOUNTAINS OF MADNESS NYARLATHOTEP CTHULHU KNOWS", kPhrase12, 8},
 };
 
-const int kNumPhrases = 11;
+const int kNumPhrases = 13;
 
 }  // namespace cvspeak

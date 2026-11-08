@@ -143,6 +143,32 @@ static void testPitchDetector() {
     CHECK(corr > 0.9f);
 }
 
+// Real frames measured from the `say` recordings (corr, k1, zcr, belowPeak).
+static void testVoicingDecision() {
+    struct Case {
+        const char* what;
+        lpc::VoicingFeatures f;
+        bool voiced;
+    } cases[] = {
+        {"AT vowel on a glide", {0.36f, -0.23f, 0.25f, 1}, true},
+        {"NYARLATHOTEP final 'e' glide", {0.45f, -0.31f, 0.09f, 1}, true},
+        {"ARE falling glide", {0.41f, -0.76f, 0.10f, 0}, true},
+        {"SPELL vowel", {0.49f, -0.31f, 0.14f, 1}, true},
+        {"AM vowel onset", {0.50f, 0.01f, 0.37f, 0}, true},
+        {"clear vowel", {0.95f, -0.80f, 0.08f, 0}, true},
+        {"COMIC 'k' burst", {0.29f, -0.19f, 0.40f, 2}, false},
+        {"STRONGEST plosive", {0.22f, -0.09f, 0.23f, 2}, false},
+        {"AT final 't' hiss", {0.37f, 0.39f, 0.44f, 7}, false},
+        {"NYARLATHOTEP 'th'", {0.25f, 0.21f, 0.40f, 4}, false},
+        {"loud 'sh' near peak", {0.30f, 0.60f, 0.45f, 1}, false},
+    };
+    for (const Case& c : cases) {
+        const bool got = lpc::classifyVoiced(c.f);
+        if (got != c.voiced) std::printf("  %s: expected %s\n", c.what, c.voiced ? "voiced" : "unvoiced");
+        CHECK(got == c.voiced);
+    }
+}
+
 // ---- word bank -------------------------------------------------------------
 
 static void testEveryWordDecodesCleanly() {
@@ -430,6 +456,7 @@ int main() {
         {"bitstream round-trip", testBitstreamRoundTrip},
         {"Levinson inverts lattice", testLevinsonInvertsLattice},
         {"pitch detector", testPitchDetector},
+        {"voicing decision (real frames)", testVoicingDecision},
         {"every word decodes cleanly", testEveryWordDecodesCleanly},
         {"no vowel noise bursts", testNoVowelNoiseBursts},
         {"speed changes duration, not pitch", testSpeedChangesDurationNotPitch},

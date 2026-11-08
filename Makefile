@@ -41,7 +41,7 @@ render: build/render
 	./build/render build/render.wav
 
 # Word indices can shift when words.txt changes, so phrases are rebuilt too.
-words: build/lpc_encode tools/words.txt tools/make_words.sh
+words: build/lpc_encode tools/words.txt tools/phrases.txt tools/make_words.sh tools/make_phrases.py
 	bash tools/make_words.sh
 	python3 tools/make_phrases.py
 

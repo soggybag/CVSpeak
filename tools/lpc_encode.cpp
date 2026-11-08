@@ -20,15 +20,6 @@ namespace {
 
 constexpr int kLpcWindow = 300;     // 37.5 ms Hamming window per frame
 constexpr int kPitchWindow = 400;   // 50 ms, long enough for a 50 Hz period
-// Voicing: a frame is voiced if its pitch correlation is high, OR if it is
-// vowel-like (strongly low-frequency spectrum, K1 well below zero) with at
-// least weak periodicity. The second rule catches fast pitch glides, where
-// the period changes inside the analysis window and correlation drops to
-// ~0.4; calling those unvoiced played loud vowel-shaped noise bursts (e.g.
-// the start of "are"). Real fricatives (S, SH, F) have K1 > -0.2.
-constexpr float kVoicedCorr = 0.5f;
-constexpr float kVowelCorr = 0.2f;
-constexpr float kVowelK1 = -0.4f;
 constexpr float kVoicedMinDb = -42.f;
 constexpr float kPeakTarget = 0.89f;  // normalize every word to -1 dBFS
 
@@ -80,6 +71,8 @@ Encoded encodeWord(const std::string& name, std::vector<float> x) {
         float rms = 0.f;
         float k[kOrder] = {};
         float period = 0.f;
+        float corr = 0.f;
+        float zcr = 0.f;
         bool voiced = false;
     };
     std::vector<Raw> raw(numFrames);
@@ -95,19 +88,29 @@ Encoded encodeWord(const std::string& name, std::vector<float> x) {
         levinson(r, kOrder, raw[m].k);
 
         float sum = 0.f;
-        int count = 0;
+        int count = 0, crossings = 0;
         for (int i = m * kFrameSamples; i < (m + 1) * kFrameSamples && i < static_cast<int>(pre.size()); ++i) {
             sum += pre[i] * pre[i];
+            if (i > 0 && (x[i] >= 0.f) != (x[i - 1] >= 0.f)) ++crossings;
             ++count;
         }
         raw[m].rms = count ? std::sqrt(sum / static_cast<float>(count)) : 0.f;
+        raw[m].zcr = count ? static_cast<float>(crossings) / static_cast<float>(count) : 0.f;
 
         std::vector<float> p = segment(lp, center, kPitchWindow);
-        float corr = 0.f;
-        raw[m].period = detectPitch(p.data(), kPitchWindow, 16, 160, 0.f, &corr);
-        const float db = raw[m].rms > 0.f ? 20.f * std::log10(raw[m].rms) : -200.f;
-        const bool periodic = corr > kVoicedCorr || (corr > kVowelCorr && raw[m].k[0] < kVowelK1);
-        raw[m].voiced = periodic && db > kVoicedMinDb && raw[m].period > 0.f;
+        raw[m].period = detectPitch(p.data(), kPitchWindow, 16, 160, 0.f, &raw[m].corr);
+    }
+
+    int peakEnergy = 0;
+    for (const Raw& r : raw) peakEnergy = std::max(peakEnergy, quantizeEnergy(r.rms));
+    for (Raw& r : raw) {
+        VoicingFeatures f;
+        f.corr = r.corr;
+        f.k1 = r.k[0];
+        f.zcr = r.zcr;
+        f.belowPeak = peakEnergy - quantizeEnergy(r.rms);
+        const float db = r.rms > 0.f ? 20.f * std::log10(r.rms) : -200.f;
+        r.voiced = classifyVoiced(f) && db > kVoicedMinDb && r.period > 0.f;
     }
 
     // Remove single-frame voicing flips, then median-3 the pitch track.
@@ -118,6 +121,22 @@ Encoded encodeWord(const std::string& name, std::vector<float> x) {
                 raw[m].period = 0.5f * (raw[m - 1].period + raw[m + 1].period);
         }
     }
+    // Fix octave errors (creaky voice often correlates best at 2x the period):
+    // pull each period to within ~0.7..1.4x of its voiced neighbours' median.
+    for (int m = 0; m < numFrames; ++m) {
+        if (!raw[m].voiced) continue;
+        std::vector<float> near;
+        for (int d = -2; d <= 2; ++d) {
+            const int j = m + d;
+            if (d != 0 && j >= 0 && j < numFrames && raw[j].voiced) near.push_back(raw[j].period);
+        }
+        if (near.empty()) continue;
+        std::sort(near.begin(), near.end());
+        const float ref = near[near.size() / 2];
+        while (raw[m].period > 1.7f * ref && raw[m].period / 2.f >= 16.f) raw[m].period /= 2.f;
+        while (raw[m].period < 0.6f * ref && raw[m].period * 2.f <= 160.f) raw[m].period *= 2.f;
+    }
+
     std::vector<float> smoothed(numFrames, 0.f);
     for (int m = 0; m < numFrames; ++m) {
         if (!raw[m].voiced) continue;

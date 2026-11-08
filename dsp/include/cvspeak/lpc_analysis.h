@@ -22,4 +22,20 @@ float levinson(const float* r, int order, float* k);
 // as the best one, which avoids octave-down errors. `corrOut` may be null.
 float detectPitch(const float* x, int n, int minLag, int maxLag, float threshold, float* corrOut);
 
+// Per-frame cues for the voiced/unvoiced decision.
+struct VoicingFeatures {
+    float corr = 0.f;          // normalized pitch correlation (detectPitch corrOut)
+    float k1 = 0.f;            // first reflection coefficient (< 0: low-frequency, vowel-like)
+    float zcr = 0.f;           // zero crossings per sample of the raw signal
+    int belowPeak = 0;         // energy codes below the loudest frame of the word
+};
+
+// Voiced (buzz) or unvoiced (noise)? Calling a vowel unvoiced plays a loud
+// noise burst, so besides clear periodicity this accepts:
+//   * vowel-like spectrum (K1 < -0.4) with weak periodicity, and
+//   * frames near the word's peak loudness with moderate periodicity and a
+//     low crossing rate. Pitch glides drop correlation to ~0.35-0.5; real
+//     fricatives and plosive bursts are quieter, noisier, or less periodic.
+bool classifyVoiced(const VoicingFeatures& f);
+
 }  // namespace cvspeak::lpc

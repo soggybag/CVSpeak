@@ -94,4 +94,11 @@ float detectPitch(const float* x, int n, int minLag, int maxLag, float threshold
     return static_cast<float>(bestLag) + offset;
 }
 
+bool classifyVoiced(const VoicingFeatures& f) {
+    if (f.corr > 0.5f) return true;
+    if (f.corr > 0.2f && f.k1 < -0.4f) return true;
+    if (f.corr > 0.33f && f.belowPeak <= 3 && f.zcr < 0.4f) return true;
+    return false;
+}
+
 }  // namespace cvspeak::lpc
