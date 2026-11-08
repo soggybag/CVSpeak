@@ -10,6 +10,7 @@
 #include "cvspeak/lpc_format.h"
 #include "cvspeak/lpc_synth.h"
 #include "cvspeak/sequencer.h"
+#include "cvspeak/ui.h"
 #include "cvspeak/voice.h"
 
 using namespace cvspeak;
@@ -189,7 +190,7 @@ static void testEveryWordDecodesCleanly() {
             energy += s * s;
         }
         CHECK(finite);
-        CHECK(peak < 2.f);     // no filter blow-ups
+        CHECK(peak <= 1.f);    // output stage
         CHECK(energy > 1.f);   // actually audible
         if (!(peak < 2.f) || !(energy > 1.f)) std::printf("  word %s: peak %.2f\n", kWords[w].name,
                                                           static_cast<double>(peak));
@@ -274,6 +275,167 @@ static void testChirpKeepsLoudness() {
     };
     CHECK(std::fabs(rmsDb(0.f) - rmsDb(1.f)) < 4.f);
     CHECK(std::fabs(rmsDb(0.f) - rmsDb(0.5f)) < 2.5f);
+}
+
+// ---- Phase 3a: formant, bend, carrier -------------------------------------
+
+// Speaks in.word once (trig is set here) until EOW or 5 s. If carrierHz > 0,
+// a sine carrier of that frequency and amplitude is patched in.
+static std::vector<float> render(VoiceInputs in, float carrierHz = 0.f, float carrierAmp = 0.f) {
+    Voice v;
+    v.setSampleRate(kRate);
+    in.trig = true;
+    VoiceOutputs outs;
+    std::vector<float> audio;
+    float phase = 0.f;
+    for (int i = 0; i < 5 * kRate; ++i) {
+        float c = carrierAmp * std::sin(phase);
+        phase += 6.2831853f * carrierHz / static_cast<float>(kRate);
+        if (phase > 6.2831853f) phase -= 6.2831853f;
+        in.carrier = carrierHz > 0.f ? &c : nullptr;
+        float s;
+        v.process(in, &s, 1, outs);
+        in.trig = false;
+        audio.push_back(s);
+        if (outs.eow) break;
+    }
+    return audio;
+}
+
+// Pitch of a 40 ms window from the middle of the audio, in Hz (0 if none).
+static float midPitchHz(const std::vector<float>& a) {
+    const int len = 1920;
+    const int start = static_cast<int>(a.size()) / 2 - len / 2;
+    float corr = 0.f;
+    const float period = lpc::detectPitch(a.data() + start, len, 48, 960, 0.3f, &corr);
+    return period > 0.f ? static_cast<float>(kRate) / period : 0.f;
+}
+
+static int midZeroCrossings(const std::vector<float>& a) {
+    const int len = 4800;  // 100 ms
+    const int start = static_cast<int>(a.size()) / 2 - len / 2;
+    int n = 0;
+    for (int i = start + 1; i < start + len; ++i)
+        if ((a[i] >= 0.f) != (a[i - 1] >= 0.f)) ++n;
+    return n;
+}
+
+static float rmsDb(const std::vector<float>& a) {
+    float sum = 0.f;
+    for (float s : a) sum += s * s;
+    return 10.f * std::log10(sum / static_cast<float>(a.size()));
+}
+
+static void testFormantKeepsPitchAndDuration() {
+    VoiceInputs in;
+    in.word = findWord("ZERO");
+    in.intonation = 0.f;
+    const std::vector<float> base = render(in);
+    for (float f : {-1.f, 1.f}) {
+        in.formant = f;
+        const std::vector<float> a = render(in);
+        CHECK(std::abs(static_cast<int>(a.size()) - static_cast<int>(base.size())) < kRate / 40);
+        CHECK(std::fabs(midPitchHz(a) / 130.81f - 1.f) < 0.03f);
+    }
+}
+
+static void testFormantShiftsSpectrum() {
+    VoiceInputs in;
+    in.word = findWord("NINE");
+    in.intonation = 0.f;
+    in.formant = -1.f;
+    const int down = midZeroCrossings(render(in));
+    in.formant = 0.f;
+    const int normal = midZeroCrossings(render(in));
+    in.formant = 1.f;
+    const int up = midZeroCrossings(render(in));
+    CHECK(down < normal);
+    CHECK(normal < up);
+}
+
+static void testBendChangesSoundSafely() {
+    VoiceInputs in;
+    in.word = findWord("COMPUTER");
+    CHECK(render(in) == render(in));  // bend 0 is deterministic
+    in.bend = 1.f;
+    CHECK(render(in) != render(VoiceInputs{}));
+
+    // Bend glitches differently on every trigger of the same voice.
+    {
+        Voice v;
+        v.setSampleRate(kRate);
+        VoiceOutputs outs;
+        std::vector<float> takes[2];
+        for (auto& take : takes) {
+            VoiceInputs t = in;
+            t.trig = true;
+            for (int i = 0; i < kRate / 2; ++i) {
+                float s;
+                v.process(t, &s, 1, outs);
+                t.trig = false;
+                take.push_back(s);
+            }
+        }
+        CHECK(takes[0] != takes[1]);
+    }
+
+    for (int w = 0; w < kNumWords; ++w) {
+        in.word = w;
+        for (int rep = 0; rep < 3; ++rep) {
+            const std::vector<float> a = render(in);
+            CHECK(a.size() < static_cast<size_t>(5 * kRate));  // still ends (EOW)
+            bool finite = true;
+            float peak = 0.f;
+            for (float s : a) {
+                finite = finite && std::isfinite(s);
+                peak = std::fmax(peak, std::fabs(s));
+            }
+            CHECK(finite);
+            CHECK(peak <= 1.f);  // output stage
+        }
+    }
+}
+
+static void testCarrierSetsPitch() {
+    VoiceInputs in;
+    in.word = findWord("ZERO");
+    in.intonation = 0.f;
+    in.blend = 1.f;
+    const float hz = midPitchHz(render(in, 440.f, 0.3f));
+    CHECK(std::fabs(hz / 440.f - 1.f) < 0.03f);
+    if (std::fabs(hz / 440.f - 1.f) >= 0.03f) std::printf("  measured %.1f Hz\n", static_cast<double>(hz));
+}
+
+static void testCarrierLevelIsNormalized() {
+    VoiceInputs in;
+    in.word = findWord("ZERO");
+    in.blend = 1.f;
+    const float quiet = rmsDb(render(in, 220.f, 0.1f));
+    const float loud = rmsDb(render(in, 220.f, 1.f));
+    CHECK(std::fabs(quiet - loud) < 3.f);
+}
+
+static void testBlendZeroIgnoresCarrier() {
+    VoiceInputs in;
+    in.word = findWord("HELLO");
+    in.blend = 0.f;
+    CHECK(render(in, 330.f, 0.8f) == render(in));
+}
+
+static void testSoftClipShape() {
+    CHECK(Voice::softClip(0.f) == 0.f);
+    CHECK(Voice::softClip(0.5f) == 0.5f);  // untouched below the knee
+    CHECK(Voice::softClip(-0.7f) == -0.7f);
+    CHECK(std::fabs(Voice::softClip(0.7001f) - 0.7001f) < 1e-4f);  // no corner at the knee
+    float prev = -2.f;
+    for (float x = -20.f; x <= 20.f; x += 0.01f) {
+        const float y = Voice::softClip(x);
+        CHECK(y > prev - 1e-6f);  // monotonic
+        CHECK(std::fabs(y) < 1.f + 1e-6f);
+        CHECK(Voice::softClip(-x) == -y);  // symmetric
+        prev = y;
+    }
+    CHECK(Voice::softClip(1.3f) > 0.9f);  // a typical overload still gets through
 }
 
 // ---- voice behavior --------------------------------------------------------
@@ -447,6 +609,141 @@ static void testEowToTrigLoopSustains() {
     CHECK(silentSamples <= eows);  // at most one gap sample per word boundary
 }
 
+
+// ---- display and menu -----------------------------------------------------
+
+static void testFramebufferLayout() {
+    Framebuffer fb;
+    fb.setPixel(3, 10);
+    CHECK(fb.pixel(3, 10));
+    CHECK(fb.data()[1 * 128 + 3] == (1u << 2));  // SSD1306 page order
+    fb.setPixel(3, 10, false);
+    CHECK(!fb.pixel(3, 10));
+    fb.setPixel(-1, 0);
+    fb.setPixel(128, 64);  // off-screen: ignored
+    int lit = 0;
+    for (int i = 0; i < Framebuffer::kBytes; ++i) lit += fb.data()[i] != 0;
+    CHECK(lit == 0);
+
+    CHECK(Framebuffer::textWidth("") == 0);
+    CHECK(Framebuffer::textWidth("AB") == 11);
+    CHECK(Framebuffer::textWidth("AB", 2) == 22);
+    CHECK(fb.drawText(0, 0, "a") == 5);
+    CHECK(fb.pixel(1, 0) && fb.pixel(0, 1) && !fb.pixel(0, 0));  // lowercase drawn as 'A'
+    int outside = 0;
+    for (int y = 0; y < 64; ++y)
+        for (int x = 0; x < 128; ++x) outside += fb.pixel(x, y) && (x >= 5 || y >= 7);
+    CHECK(outside == 0);
+}
+
+static void testUiNavigation() {
+    Ui ui;
+    CHECK(ui.screen() == Ui::Screen::Main);
+    ui.turn(-1);
+    CHECK(ui.settings().word == kNumWords - 1);  // wraps
+    ui.turn(2);
+    CHECK(ui.settings().word == 1);
+
+    ui.back();  // main screen: Back toggles the mode
+    CHECK(ui.settings().mode == Mode::Phrase);
+    ui.turn(1);
+    CHECK(ui.settings().phrase == 1 && ui.settings().word == 1);  // each mode keeps its own selection
+    ui.back();
+    CHECK(ui.settings().mode == Mode::Word);
+
+    ui.push();
+    CHECK(ui.screen() == Ui::Screen::Menu && !ui.editing());
+    ui.turn(-5);
+    CHECK(ui.cursor() == 0);  // clamps, doesn't wrap
+    ui.turn(10);
+    CHECK(ui.cursor() == Ui::kNumItems - 1);
+    ui.turn(-1);
+    CHECK(ui.cursor() == Ui::kItemIntonation);
+
+    ui.push();
+    CHECK(ui.editing());
+    ui.turn(-3);
+    CHECK(std::fabs(ui.settings().intonation - 0.85f) < 1e-4f);
+    ui.turn(10);
+    CHECK(ui.settings().intonation == 1.f);  // clamps at 100%
+    ui.push();
+    CHECK(!ui.editing());
+
+    ui.turn(-1);
+    ui.push();
+    ui.turn(1);
+    CHECK(ui.settings().mode == Mode::Phrase);  // Mode item toggles per detent
+    ui.turn(2);
+    CHECK(ui.settings().mode == Mode::Phrase);
+    ui.back();
+    CHECK(!ui.editing() && ui.screen() == Ui::Screen::Menu);
+    ui.back();
+    CHECK(ui.screen() == Ui::Screen::Main);
+    ui.turn(1);
+    CHECK(ui.settings().phrase == 2);  // the encoder selects again
+
+    ui.settings().word = kNumWords + 3;
+    ui.settings().chirp = 0.523f;
+    ui.clampSettings();
+    CHECK(ui.settings().word == 3);
+    CHECK(std::fabs(ui.settings().chirp - 0.5f) < 1e-4f);
+}
+
+static void testSelectCvHysteresis() {
+    SelectCv cv;
+    const float semi = 1.f / 12.f;
+    CHECK(cv.process(0.6f * semi) == 0);   // inside the hysteresis band
+    CHECK(cv.process(0.7f * semi) == 1);
+    CHECK(cv.process(0.4f * semi) == 1);   // stays until clearly past the boundary
+    CHECK(cv.process(0.3f * semi) == 0);
+    CHECK(cv.process(3.f) == 36);
+    CHECK(cv.process(-1.f) == -12);
+    CHECK(cv.process(-1.f + 0.6f * semi) == -12);
+}
+
+// Every screen state draws without running off its arrays, and the spoken
+// word is drawn inverted (a filled box).
+static void testUiRendersAllStates() {
+    Ui ui;
+    Framebuffer fb;
+    UiStatus st;
+    for (int w = 0; w < kNumWords; ++w) {
+        st.selected = w;
+        st.speaking = true;
+        st.speakingWord = w;
+        ui.render(fb, st);
+    }
+    ui.back();  // Phrase mode
+    int boxes = 0;
+    for (int p = 0; p < kNumPhrases; ++p) {
+        for (int pos = 0; pos < kPhrases[p].length; ++pos) {
+            st = UiStatus{};
+            st.selected = st.seqPhrase = p;
+            st.speaking = true;
+            st.spokenPos = pos;
+            st.nextPos = (pos + 1) % kPhrases[p].length;
+            ui.render(fb, st);
+            // A lit run at least as wide as the spoken word means its box was drawn.
+            const int need = Framebuffer::textWidth(kWords[kPhrases[p].words[pos]].name) + 2;
+            bool found = false;
+            for (int y = 11; y < 64 && !found; ++y) {
+                int run = 0;
+                for (int x = 0; x < 128 && !found; ++x) {
+                    run = fb.pixel(x, y) ? run + 1 : 0;
+                    found = run >= need;
+                }
+            }
+            boxes += found;
+        }
+    }
+    int total = 0;
+    for (int p = 0; p < kNumPhrases; ++p) total += kPhrases[p].length;
+    CHECK(boxes == total);
+    ui.push();
+    ui.render(fb, st);
+    CHECK(fb.pixel(0, 9));  // menu header rule
+}
+
 int main() {
     struct {
         const char* name;
@@ -462,6 +759,13 @@ int main() {
         {"speed changes duration, not pitch", testSpeedChangesDurationNotPitch},
         {"monotone pitch follows V/Oct", testMonotonePitchFollowsVoct},
         {"chirp keeps loudness", testChirpKeepsLoudness},
+        {"formant keeps pitch and duration", testFormantKeepsPitchAndDuration},
+        {"formant shifts spectrum", testFormantShiftsSpectrum},
+        {"bend changes sound, stays safe", testBendChangesSoundSafely},
+        {"carrier sets pitch", testCarrierSetsPitch},
+        {"carrier level is normalized", testCarrierLevelIsNormalized},
+        {"blend 0 ignores carrier", testBlendZeroIgnoresCarrier},
+        {"soft clip shape", testSoftClipShape},
         {"silent until triggered", testSilentUntilTriggered},
         {"reset does not cut word", testResetDoesNotCutWord},
         {"select index (knob + semitone CV)", testSelectIndex},
@@ -473,6 +777,10 @@ int main() {
         {"voice word mode ignores reset", testVoiceWordModeIgnoresReset},
         {"retrigger switches word", testRetriggerSwitchesWord},
         {"EOW -> TRIG loop sustains", testEowToTrigLoopSustains},
+        {"framebuffer layout and text", testFramebufferLayout},
+        {"UI navigation", testUiNavigation},
+        {"SEL CV hysteresis", testSelectCvHysteresis},
+        {"UI renders all states", testUiRendersAllStates},
     };
     for (auto& t : tests) {
         const int before = g_failures;

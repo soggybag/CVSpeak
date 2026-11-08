@@ -4,7 +4,7 @@ CVSpeak is a Eurorack speech synthesizer in the spirit of the Speak & Spell. It 
 
 The hardware will be an RP2350-based module with an OLED display and an encoder, in the style of Ornament & Crime, and will be built with SMD parts assembled by JLCPCB. The module is being prototyped first as a **VCV Rack 2 plugin**. The plugin and the future firmware share the same C++ DSP core, so what you hear in Rack is what the module will do.
 
-**Status:** early development. The speech engine, Word and Phrase modes and the VCV plugin work. The panel design, display menus, vocoder and hardware are still to come. See [PLAN.md](PLAN.md) for the full roadmap.
+**Status:** early development. The speech engine, Word and Phrase modes, the display and menu, and the VCV plugin work. The final panel design, vocoder and hardware are still to come. See [PLAN.md](PLAN.md) for the full roadmap.
 
 ## Features
 
@@ -14,6 +14,9 @@ The hardware will be an RP2350-based module with an OLED display and an encoder,
 - **Pitch** (1V/oct) and **Speed** (0.25–4×) are independent of each other.
 - **Intonation**: from a flat, singable robot monotone to the word's natural pitch contour.
 - **Chirp**: from a clean pulse to a buzzy, metallic TI-style excitation.
+- **Formant**: shifts the vocal tract from deep and huge to tiny, without changing pitch or speed.
+- **Bend**: circuit-bending glitches, from bit flips in the stored speech data to stuttering frames.
+- **Carrier In**: patch any audio in and the words speak *through* it (talking synth). Blend mixes it with the internal buzz.
 - **Select CV** at one word or phrase per semitone, so a note sequencer can pick words.
 - A tiny vocabulary footprint of about 100 bytes per word. 51 words take about 5.6 KB.
 
@@ -23,19 +26,29 @@ Prebuilt plugins for Windows, Linux, Intel Macs and Apple Silicon Macs are on th
 
 ## VCV Rack module
 
+The display and menu are shared code: VCV draws the same 128×64 pixels the hardware's OLED will show.
+
 | Control | What it does |
 |---|---|
-| **SELECT** | Chooses the word (Word mode) or phrase (Phrase mode). The tooltip shows its name. |
+| **Encoder** (SELECT / MENU) | Main screen: turn to choose the word (Word mode) or phrase (Phrase mode). Click to open the menu. Drag up and down or use the scroll wheel to turn it. |
+| **BACK** | Main screen: switches between Word and Phrase mode. In the menu: stops editing, then leaves the menu. |
+| **Menu** | MODE (Word / Phrase), INTONATION (0% = monotone at the set pitch, 100% = the recorded pitch contour), CHIRP (excitation character, from clean to TI-style buzz). Turn to pick a setting, click to edit it, turn to change it, click or BACK when done. |
 | **PITCH** / **V/OCT** | Speaking pitch. The word's median pitch lands on this note (default C3). |
 | **SPEED** | How fast the word is spoken, without changing pitch. |
-| **INTONE** | 0 = monotone at the set pitch, 1 = the recorded pitch contour. |
-| **CHIRP** | Excitation character, from clean to TI-style buzz. |
-| **MODE** | Word or Phrase. |
+| **FORMANT** / **FORM** CV | Vocal tract size, ±1 octave, without changing pitch or speed. |
+| **BEND** / **BEND** CV | Circuit-bend glitches: random bit flips in the speech data plus stuttering frames. Different every trigger. CV is 0–10 V. |
+| **BLEND** | With CARRIER patched: 0 = internal buzz, 1 = carrier only. Hiss sounds always keep their noise, so words stay intelligible. |
+| **CARRIER** | Audio to speak through, e.g. a saw or chord. Its level is evened out automatically. |
+| **SPEED** CV | Adds to SPEED. |
 | **TRIG** / **SPEAK** button | Speaks the word, or the next word in a phrase. The button can kick-start an EOW → TRIG loop. |
 | **RESET** | Phrase mode: the next TRIG speaks the first word. It doesn't cut off the current word, and RESET plus TRIG together speak word 1. |
-| **SEL CV** | Adds to SELECT, one item per semitone (1/12 V), wrapping at the ends. |
+| **SEL CV** | Adds to the encoder's choice, one item per semitone (1/12 V), wrapping at the ends. The display header shows the offset (e.g. `CV+3`). |
 | **EOW** | A trigger when each word finishes. |
-| **OUT** | Audio, about ±5 V. |
+| **OUT** | Audio, soft clipped to stay within ±5 V. |
+
+For SPEED and FORM CV, ±5 V sweeps the knob's whole range.
+
+The display is drawn 1.5× larger than the real 1.3" OLED so it's readable at 100% zoom. Right-click the module and choose **Hardware-size display** to see it at its actual size. Patches save the selected word and phrase by name, so they survive vocabulary changes. Patches from v2.0.x keep their settings.
 
 ## Building
 
@@ -55,6 +68,7 @@ Then:
 ```sh
 make test          # run the DSP core's unit tests
 make render        # speak every word into build/render.wav (no Rack needed)
+make screens       # print the display screens as ASCII art (no Rack needed)
 make               # build the VCV Rack plugin
 make install       # package it into Rack 2's plugin folder
 make dist          # package dist/CVSpeak-<version>-<os>-<cpu>.vcvplugin to share
@@ -162,7 +176,7 @@ Recordings aren't committed by default, because `.gitignore` excludes `*.wav`. A
 LPC at 8 kHz is meant to sound robotic, and that's the charm. A few things are normal:
 - Consonants like "s", "t", "k" and "p" are played as short bursts of hiss, because that's how they're encoded. Hard consonants at the start or end of a word, such as the "k" in "comic" or the "p" in "-tep", come out as brief clicks or puffs.
 - Loud noise in the middle of a *vowel* is a bug: the encoder misjudged a vowel as hiss. The encoder guards against this, and `make test` checks for it, but if you hear one, note the word and open an issue.
-- Some words peak a little above full scale (about 1.3×). That's fine in Rack, and the hardware will have headroom for it.
+- The output soft clips. Below 70% of full scale nothing changes. Above it, peaks are rounded off smoothly and never reach full scale. On normal words that's inaudible (under 0.2 dB of level change). With heavy Bend, glitch spikes turn into crunchy saturation, like a circuit-bent toy overdriving its speaker. A safety limiter catches only extreme spikes (above 3×), so they don't saturate into a harsh square wave.
 
 ## Project layout
 

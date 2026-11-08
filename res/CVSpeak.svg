@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- 14 HP placeholder panel. Rack's SVG renderer ignores <text>, so final
-     labels must be converted to paths (Phase 3). -->
+     labels must be converted to paths (Phase 3c). -->
 <svg xmlns="http://www.w3.org/2000/svg" width="71.12mm" height="128.5mm" viewBox="0 0 71.12 128.5">
   <rect x="0" y="0" width="71.12" height="128.5" fill="#e8e4da"/>
-  <rect x="0" y="0" width="71.12" height="8" fill="#c2342b"/>
-  <rect x="0" y="120.5" width="71.12" height="8" fill="#c2342b"/>
+  <rect x="0" y="0" width="71.12" height="6" fill="#c2342b"/>
+  <rect x="0" y="123.5" width="71.12" height="5" fill="#c2342b"/>
   <!-- jack area -->
-  <rect x="4" y="92" width="63.12" height="27" rx="2" fill="#d6d1c4"/>
-  <!-- output jacks highlight -->
-  <rect x="36.4" y="107" width="29.7" height="13" rx="2" fill="#3a3a3a"/>
+  <rect x="2.5" y="87" width="66.12" height="35.5" rx="2" fill="#d6d1c4"/>
+  <!-- outputs -->
+  <rect x="35.4" y="108.6" width="33.2" height="13.4" rx="2" fill="#b9b1a0"/>
 </svg>

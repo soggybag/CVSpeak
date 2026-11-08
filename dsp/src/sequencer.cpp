@@ -9,9 +9,22 @@ int selectIndex(float knob, float cvVolts, int count) {
     int base = static_cast<int>(knob * static_cast<float>(count));
     if (base < 0) base = 0;
     if (base >= count) base = count - 1;  // knob fully clockwise
-    const int offset = static_cast<int>(std::lround(cvVolts * 12.f));
-    const int i = (base + offset) % count;
+    return wrapIndex(base + static_cast<int>(std::lround(cvVolts * 12.f)), count);
+}
+
+int wrapIndex(int index, int count) {
+    if (count <= 0) return 0;
+    const int i = index % count;
     return i < 0 ? i + count : i;
+}
+
+int SelectCv::process(float volts) {
+    const float semitones = volts * 12.f;
+    const float distance = semitones - static_cast<float>(offset_);
+    if (distance > 0.5f + kHysteresis || distance < -0.5f - kHysteresis) {
+        offset_ = static_cast<int>(std::lround(semitones));
+    }
+    return offset_;
 }
 
 int PhraseSequencer::next(int phrase) {

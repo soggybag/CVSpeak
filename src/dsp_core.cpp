@@ -1,8 +1,10 @@
 // Unity build of the shared DSP core (dsp/src). Add new core .cpp files here.
+#include "../dsp/src/framebuffer.cpp"
 #include "../dsp/src/lpc_analysis.cpp"
 #include "../dsp/src/lpc_format.cpp"
 #include "../dsp/src/lpc_synth.cpp"
 #include "../dsp/src/phrases_generated.cpp"
 #include "../dsp/src/sequencer.cpp"
+#include "../dsp/src/ui.cpp"
 #include "../dsp/src/voice.cpp"
 #include "../dsp/src/words_generated.cpp"

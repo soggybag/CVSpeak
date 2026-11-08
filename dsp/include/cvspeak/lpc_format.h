@@ -89,7 +89,9 @@ public:
         for (int i = 0; i < bits; ++i) {
             v <<= 1;
             if (pos_ < bits_) {
-                v |= (data_[pos_ / 8] >> (7 - pos_ % 8)) & 1u;
+                uint32_t bit = (data_[pos_ / 8] >> (7 - pos_ % 8)) & 1u;
+                if (flipThreshold_ && random() < flipThreshold_) bit ^= 1u;
+                v |= bit;
             } else {
                 exhausted_ = true;
             }
@@ -99,11 +101,29 @@ public:
     }
     bool exhausted() const { return exhausted_; }
 
+    // Circuit-bend corruption: each bit read is flipped with probability
+    // threshold / 2^32. One flip desynchronizes the variable-length frames
+    // that follow, which is where the classic glitchy garble comes from.
+    void setBitFlip(uint32_t threshold, uint32_t seed) {
+        flipThreshold_ = threshold;
+        rng_ = seed ? seed : 0x9e3779b9u;
+    }
+    void setBitFlipThreshold(uint32_t threshold) { flipThreshold_ = threshold; }
+
 private:
+    uint32_t random() {
+        rng_ ^= rng_ << 13;
+        rng_ ^= rng_ >> 17;
+        rng_ ^= rng_ << 5;
+        return rng_;
+    }
+
     const uint8_t* data_ = nullptr;
     int bits_ = 0;
     int pos_ = 0;
     bool exhausted_ = false;
+    uint32_t flipThreshold_ = 0;
+    uint32_t rng_ = 0x9e3779b9u;
 };
 
 void writeFrame(BitWriter& w, const FrameCodes& f);

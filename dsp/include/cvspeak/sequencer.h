@@ -16,6 +16,22 @@ enum class Mode : uint8_t {
 // pick words by note. Results wrap around at either end.
 int selectIndex(float knob, float cvVolts, int count);
 
+// Wraps any index into [0, count).
+int wrapIndex(int index, int count);
+
+// SEL CV to an item offset (one item per semitone), with hysteresis so a CV
+// sitting near the boundary between two items doesn't flicker between them.
+class SelectCv {
+public:
+    // Hysteresis in semitones beyond the halfway point between items.
+    static constexpr float kHysteresis = 0.15f;
+    int process(float volts);
+    int offset() const { return offset_; }
+
+private:
+    int offset_ = 0;
+};
+
 class PhraseSequencer {
 public:
     PhraseSequencer() = default;

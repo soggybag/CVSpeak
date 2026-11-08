@@ -1,6 +1,10 @@
 #pragma once
-// LPC speech decoder running at 8 kHz: bitstream -> interpolated parameters
-// -> chirp/noise excitation -> 10-pole lattice filter -> de-emphasis.
+// LPC speech decoder: bitstream -> interpolated parameters -> chirp/noise (or
+// external carrier) excitation -> 10-pole lattice filter -> de-emphasis.
+//
+// The filter normally runs at 8 kHz. Running it at another rate (setRate)
+// scales every formant by rate / 8 kHz, while pitch and timing stay tied to
+// real time: that is the Formant control.
 
 #include <cstdint>
 
@@ -37,6 +41,10 @@ public:
     void stop() { word_ = nullptr; }
     bool active() const { return word_ != nullptr; }
 
+    // Samples per second at which tick() is called. 8 kHz = formants as
+    // recorded; 16 kHz = an octave up. Pitch and speed are unaffected.
+    void setRate(float ticksPerSecond);
+
     // Frame rate multiplier: 1 = as recorded, 2 = twice as fast. Pitch is unaffected.
     void setSpeed(float ratio);
 
@@ -47,7 +55,18 @@ public:
     // Voiced excitation character: 0 = clean impulse, 1 = strong TI-style chirp.
     void setChirp(float amount);
 
-    // Renders one 8 kHz sample. Sets `ended` on the sample the word finishes.
+    // Circuit bending, 0..1: bitstream bit flips and frame stutters.
+    void setBend(float amount);
+
+    // External excitation for the next tick, normalized to about unit power.
+    // `blend` 0 = internal buzz, 1 = carrier only (voiced frames; unvoiced
+    // frames keep their noise so consonants stay intelligible).
+    void setCarrier(float sample, float blend) {
+        carrier_ = sample;
+        blend_ = blend;
+    }
+
+    // Renders one sample. Sets `ended` on the sample the word finishes.
     float tick(bool& ended);
 
 private:
@@ -59,6 +78,7 @@ private:
     };
 
     void decodeNext();
+    uint32_t random();
 
     const LpcWord* word_ = nullptr;
     lpc::BitReader reader_;
@@ -66,11 +86,19 @@ private:
     bool nextIsStop_ = false;
     float t_ = 0.f;  // position from cur_ (0) to next_ (1)
 
+    float rate_ = static_cast<float>(lpc::kSampleRate);
     float speed_ = 1.f;
     float pitchHz_ = 130.81f;
     float intonation_ = 1.f;
     float chirpAmount_ = 0.5f;
     float pulseEnergy_ = 0.f;  // energy of one excitation pulse, for normalization
+
+    uint32_t bitFlipThreshold_ = 0;
+    uint32_t stutterThreshold_ = 0;
+    uint32_t rng_ = 0x2545f491u;
+
+    float carrier_ = 0.f;
+    float blend_ = 0.f;
 
     float pulsePhase_ = 0.f;
     float pulseScale_ = 0.f;

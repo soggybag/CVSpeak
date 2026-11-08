@@ -9,7 +9,7 @@ We prototype it as a VCV Rack module first, using a DSP core that is shared with
 - **128×64 OLED** with a **push encoder**, plus a **back/shift button**. Starting point: one encoder and one button. Try it in VCV and add a second encoder only if the menu feels cramped.
 - The display shows the current mode, bank or phrase name, and the word being spoken (with the current word highlighted in Phrase mode). It also has a settings menu: retrigger behavior, excitation source, calibration, and so on.
 - **Main screen:** turn the encoder to scroll through banks or phrases, and push it to open the menu.
-- The UI is shared code: it lives in `dsp/ui/` and draws into a 1-bit 128×64 framebuffer. VCV draws that framebuffer on screen, and the firmware sends it to the OLED. Menus behave the same on both, and we design them in VCV first.
+- The UI is shared code: it lives in `dsp/` (`ui.h`, `framebuffer.h`) and draws into a 1-bit 128×64 framebuffer. VCV draws that framebuffer on screen, and the firmware sends it to the OLED. Menus behave the same on both, and we design them in VCV first.
 
 ### Speech modes (selected from the menu)
 | Mode | Word / Phrase knob + CV | TRIG | RESET |
@@ -53,7 +53,7 @@ We prototype it as a VCV Rack module first, using a DSP core that is shared with
 CVSpeak/
   dsp/        plain C++17, float only: LPC decoder, word bank, phrase sequencer,
               excitation, vocoder. No dependency on Rack or the Pico SDK.
-  dsp/ui/     shared menu and screens, drawn into a 128x64 1-bit framebuffer
+              plus the shared menu and screens (ui, framebuffer), drawn into a 128x64 1-bit framebuffer
   tests/      unit tests for the core (make test)
   tools/      Python: WAV → LPC encoding, phrases.txt → C++ tables, render-to-WAV test
   src/ res/   VCV Rack plugin wrapper and panel (GPLv3); plugin.json + Makefile at the repo root
@@ -87,10 +87,33 @@ CVSpeak/
 - 19 unit tests.
 
 ### Phase 3: VCV Rack module
-- SVG panel at the real HP size, matching section 2.
-- Shared UI (`dsp/ui/`): framebuffer, font, main screen, menu. Encoder and button events are driven from the VCV widgets.
-- Wire up all params and ports, and add Carrier In with Blend.
-- Add Formant and Bend.
+**3a ✅ (2026-11-07):**
+- **Formant:** the synth runs at 8 kHz × 2^formant, with pitch and frame timing in real time; ±1 octave on the knob, ±1.5 octaves with CV.
+- **Bend:** bitstream bit flips (up to 3%/bit) and frame stutters (up to 50%), both scaling with amount². Reseeded on every trigger.
+- **Carrier In + Blend:** the carrier is decimated to the synth rate and normalized to unit power. It replaces voiced excitation only.
+- CV inputs for Speed, Formant and Bend.
+- Output stage: a safety limiter above 3× (instant attack, 50 ms release), then a tanh soft clipper with its knee at 0.7, so the output stays within ±1. Bend could spike to 16×, and some words reach about 1.3×. Normal words change level by under 0.2 dB; the limiter is active 0% / 0.6% / 2.6% of the time at Bend 0 / 0.5 / 1. The same stage goes before the hardware DAC, so overloads sound the same in VCV and on the module.
+- 28 unit tests.
+
+**3b ✅ (2026-11-07): shared display and menu**
+- `dsp/include/cvspeak/framebuffer.h`: 128×64 1-bit framebuffer in SSD1306/SH1106 page order (the firmware sends `data()` as-is), plus our own 5×7 font, uppercase only (lowercase prints as uppercase), at 1× or 2×.
+- `dsp/include/cvspeak/ui.h`: screens and menu, driven by `turn()`, `push()` and `back()`. The UI owns the settings (mode, word, phrase, intonation, chirp).
+  - Main screen, Word mode: the selected word large (2×, or 1× if it doesn't fit), its neighbours above and below, and the word being spoken.
+  - Main screen, Phrase mode: the phrase word-wrapped, spoken word inverted, next word underlined, scrolling, word position in the header.
+  - The header shows the SEL CV offset (`CV+3`).
+  - Menu: Mode, Intonation, Chirp (5% steps).
+- **Decided: Intonation, Chirp and Mode move into the menu.** That leaves 5 knobs (Pitch, Speed, Formant, Bend, Blend), as in section 2, and saves about $3–5 of pots per module. Back on the main screen toggles Word/Phrase for quick live switching.
+- `SelectCv`: SEL CV with hysteresis (0.15 semitone past the halfway point), so a CV sitting on a boundary doesn't flicker. Shared, so the hardware gets it too.
+- VCV:
+  - An endless encoder widget (drag or scroll to turn, click to push) plus Back, Speak and the display grouped together at the top.
+  - Events are applied on the audio thread.
+  - The display is drawn 1.5× the real OLED size by default (one OLED pixel ≈ one screen pixel at 100% zoom). The context menu has a true 1.3" size option.
+  - Settings are saved in the patch JSON, with the word and phrase saved by name. v2.0.x patches migrate from their old knob and switch values; the old param ids are kept but hidden.
+- `make screens` prints every screen as ASCII art.
+- 32 unit tests.
+
+**Remaining (3c):**
+- Final SVG panel artwork at the real HP size, with labels as paths, matching section 2 and the layout tried here.
 - ✅ Done when: the module is fun to patch. Iterate on the controls here, where changes are cheap.
 
 ### Phase 4: Vocoder mode (stretch)
@@ -116,4 +139,43 @@ CVSpeak/
 1. **Audio I/O chip**: vocoder mode needs clean audio inputs, and the RP2350's internal ADC is too noisy for that. Proposed: a stereo I2S codec (e.g. WM8731 / WM8960 / TLV320AIC3204) that handles both inputs and the output, in place of a DAC-only PCM5102A. *This affects the hardware, so decide before Phase 5, and choose based on what LCSC has in stock.*
 2. **Width**: 14 HP for now. Revisit once the VCV panel layout is settled.
 3. **Vocabulary**: what words or phrases to ship, and whose voice records them.
-4. **License**: GPLv3 for everything (simplest), or a closed-source firmware.
+4. ~~**License**~~: decided. GPL-3.0-or-later for everything (`LICENSE`, 2026-11-07).
+
+## 6. Hardware notes (collected during VCV development)
+
+Things the VCV prototype has settled that the firmware and PCB must match, so the module behaves the same as the plugin.
+
+### Audio output
+- **The DSP output stage is final and runs before the DAC:** a safety limiter above 3× (instant attack, 50 ms release), then a tanh soft clipper (knee 0.7). The core's output is always strictly within ±1.
+- **Map ±1.0 to the DAC's full scale, and full scale to ±5 V at the jack.** The DAC then never clips, and the analog stage never sees more than ±5 V. That's comfortable headroom on ±12 V rails, so rail-to-rail op-amps aren't needed.
+- Output buffer: op-amp gain stage to ±5 V, with about 1 kΩ in series at the jack for protection. The DSP removes DC (blocker at about 13 Hz), so DC coupling is fine. Add a coupling capacitor only if the codec's output has a DC offset.
+- Bandwidth: speech fills up to about 3.6 kHz × the formant ratio, so about 10 kHz at +1.5 octaves. The codec's own 48 kHz reconstruction filter is enough; no extra analog anti-image filter is needed.
+- Firmware: `tanh` only runs above the knee. On the M33, replace it with a cheap rational approximation if profiling shows it matters.
+
+### Inputs
+- **Carrier In needs a clean audio ADC** (see open decision 1). The DSP evens out the carrier's level, boosting it by up to 40 dB, so the input's **noise floor matters more than its gain**: an unpatched, noisy input would get boosted and "speak noise".
+- **Use switched jacks with insertion detection on Carrier In (and Mod In).** VCV switches the carrier path on with `isConnected()`. The hardware needs the same: a jack with a normalling contact to ground plus a GPIO sense line. Without it, the module can't tell an empty jack from a silent cable.
+- CV ranges, to match VCV:
+  - Speed and Formant CV: ±5 V sweeps the whole knob range.
+  - Bend CV: 0–10 V.
+  - **SEL CV: one item per semitone (1/12 V ≈ 83 mV).** A 12-bit ADC across ±5 V gives about 2.4 mV per step, which is plenty. It still needs calibration, plus **hysteresis at item boundaries** so a CV sitting between two items doesn't flicker.
+  - V/Oct needs calibration: offset and scale, stored in flash. This is already in Phase 6.
+- TRIG and RESET: Schmitt behavior like Rack's (on above about 1 V, re-arms below about 0.1 V). Use a transistor or comparator front end, not the RP2350's internal pull-downs (erratum E9).
+- RESET and TRIG arriving on the same step must speak word 1. In firmware, process RESET before TRIG within the same control tick, like the core does.
+
+### Outputs
+- EOW: in VCV it's a 1 ms, 10 V pulse. **On hardware, use 5–10 ms.** Some modules miss 1 ms triggers, especially if they scan their inputs slowly. Output 0–10 V (or 0–5 V) through a transistor or op-amp stage.
+
+### CPU budget (to profile in Phase 5)
+- The synth's tick rate is 8 kHz × 2^formant, so **at +1.5 octaves it runs at 22.6 kHz. That's the worst case to measure.** Each tick runs a 10-stage lattice filter, `log2`/`exp2` for pitch, a `sqrt`, and the noise or pulse generator.
+- Each output sample at 48 kHz: interpolation, a biquad, the limiter, and the soft clip.
+- If the worst case is too heavy: compute the pitch math once per frame instead of per tick, or limit Formant to +1 octave on the hardware.
+- Bend adds only a xorshift random number per bit read and per frame: negligible.
+
+### Controls
+- SPEAK: a momentary tactile button that ORs with TRIG (needed to kick-start an EOW → TRIG self-patch).
+- The encoder and back button take over Mode, Intonation and Chirp (decided in 3b): 5 pots, 1 encoder with push, and 2 buttons (Back, Speak).
+- Display: 1.3" 128×64 OLED, SH1106, SPI version (7-pin), on the control board. Send the framebuffer by DMA. Its active area is 29.42 × 14.71 mm; the VCV panel reserves that area (drawn 1.5× by default).
+
+### Memory
+- The word bank is about 110 bytes per word (51 words ≈ 5.6 KB). Even thousands of words fit easily in QSPI flash.

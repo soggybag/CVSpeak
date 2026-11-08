@@ -30,11 +30,30 @@ const ChirpTable kChirp;
 constexpr float kMinHz = 30.f;
 constexpr float kMaxHz = 2000.f;
 
+// Bend at full: ~3% of bits flipped (about one per frame) and a 50% chance
+// of replaying each 25 ms frame. Both scale with amount squared so the
+// first half of the knob stays subtle.
+constexpr float kMaxBitFlip = 0.03f;
+constexpr float kMaxStutter = 0.5f;
+
+uint32_t probabilityToThreshold(float p) {
+    if (p <= 0.f) return 0;
+    return static_cast<uint32_t>(p * 4294967295.f);
+}
+
 }  // namespace
+
+uint32_t LpcSynth::random() {
+    rng_ ^= rng_ << 13;
+    rng_ ^= rng_ >> 17;
+    rng_ ^= rng_ << 5;
+    return rng_;
+}
 
 void LpcSynth::start(const LpcWord& word) {
     word_ = &word;
     reader_ = lpc::BitReader(word.data, word.bytes);
+    reader_.setBitFlip(bitFlipThreshold_, random());  // a different glitch every time
     lattice_.reset();
     deemph_ = dcX_ = dcY_ = 0.f;
     nextIsStop_ = false;
@@ -56,6 +75,10 @@ void LpcSynth::start(const LpcWord& word) {
     pulsePos_ = kChirpLen;
 }
 
+void LpcSynth::setRate(float ticksPerSecond) {
+    rate_ = ticksPerSecond < 1000.f ? 1000.f : ticksPerSecond;
+}
+
 void LpcSynth::setSpeed(float ratio) {
     speed_ = ratio < 0.05f ? 0.05f : ratio;
 }
@@ -74,6 +97,14 @@ void LpcSynth::setChirp(float amount) {
 void LpcSynth::setPitch(float hz, float intonation) {
     pitchHz_ = hz;
     intonation_ = intonation < 0.f ? 0.f : (intonation > 1.f ? 1.f : intonation);
+}
+
+void LpcSynth::setBend(float amount) {
+    amount = amount < 0.f ? 0.f : (amount > 1.f ? 1.f : amount);
+    const float a2 = amount * amount;
+    bitFlipThreshold_ = probabilityToThreshold(kMaxBitFlip * a2);
+    stutterThreshold_ = probabilityToThreshold(kMaxStutter * a2);
+    reader_.setBitFlipThreshold(bitFlipThreshold_);  // applies mid-word too
 }
 
 void LpcSynth::decodeNext() {
@@ -128,7 +159,7 @@ float LpcSynth::tick(bool& ended) {
         const float ratio = word_->medianPeriod / period;  // > 1 above the word's median
         float hz = pitchHz_ * std::exp2(intonation_ * std::log2(ratio));
         hz = hz < kMinHz ? kMinHz : (hz > kMaxHz ? kMaxHz : hz);
-        const float periodSamples = static_cast<float>(lpc::kSampleRate) / hz;
+        const float periodSamples = rate_ / hz;
 
         pulsePhase_ += 1.f;
         if (pulsePhase_ >= periodSamples) {
@@ -137,12 +168,12 @@ float LpcSynth::tick(bool& ended) {
             pulsePos_ = 0;
             pulseScale_ = std::sqrt(periodSamples / pulseEnergy_);
         }
+        float buzz = 0.f;
         if (pulsePos_ < kChirpLen) {
-            e = ((pulsePos_ == 0 ? 1.f : 0.f) + chirpAmount_ * kChirp.v[pulsePos_]) * pulseScale_;
+            buzz = ((pulsePos_ == 0 ? 1.f : 0.f) + chirpAmount_ * kChirp.v[pulsePos_]) * pulseScale_;
             ++pulsePos_;
-        } else {
-            e = 0.f;
         }
+        e = buzz + (carrier_ - buzz) * blend_;
     } else {
         noise_ ^= noise_ << 13;
         noise_ ^= noise_ >> 17;
@@ -154,12 +185,13 @@ float LpcSynth::tick(bool& ended) {
     deemph_ = y + lpc::kPreEmphasis * deemph_;
     y = deemph_;
 
-    // DC blocker (~13 Hz): de-emphasis has 24 dB of gain at DC.
+    // DC blocker: de-emphasis has 24 dB of gain at DC.
     const float dc = y - dcX_ + 0.99f * dcY_;
     dcX_ = y;
     dcY_ = dc;
 
-    t_ += speed_ / static_cast<float>(lpc::kFrameSamples);
+    // Frames advance in real time, whatever the tick rate (Formant).
+    t_ += speed_ * static_cast<float>(lpc::kSampleRate) / (rate_ * static_cast<float>(lpc::kFrameSamples));
     while (t_ >= 1.f) {
         t_ -= 1.f;
         if (nextIsStop_) {
@@ -167,6 +199,8 @@ float LpcSynth::tick(bool& ended) {
             word_ = nullptr;
             break;
         }
+        // Bend stutter: replay the current frame instead of advancing.
+        if (stutterThreshold_ && random() < stutterThreshold_) continue;
         cur_ = next_;
         decodeNext();
     }

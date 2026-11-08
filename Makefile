@@ -11,6 +11,7 @@
 # Desktop (DSP core, no Rack needed):
 #   make test          build and run unit tests
 #   make render        speak every word into build/render.wav
+#   make screens       print the display screens as ASCII art
 #   make words         regenerate dsp/src/words_generated.cpp from tools/words.txt + phrases.txt (macOS)
 #   make phrases       regenerate dsp/src/phrases_generated.cpp from tools/phrases.txt
 
@@ -59,9 +60,9 @@ ENCODER_SRC := dsp/src/lpc_format.cpp dsp/src/lpc_analysis.cpp
 RACK_USER_DIR_MAC ?= $(HOME)/Library/Application Support/Rack2
 RACK_PLUGINS := $(RACK_USER_DIR_MAC)/plugins-mac-arm64
 
-.PHONY: desktop test render words phrases vcv vcv-install vcv-link
+.PHONY: desktop test render screens words phrases vcv vcv-install vcv-link
 
-desktop: $(DESKTOP)/tests $(DESKTOP)/render $(DESKTOP)/lpc_encode
+desktop: $(DESKTOP)/tests $(DESKTOP)/render $(DESKTOP)/lpc_encode $(DESKTOP)/ui_preview
 
 $(DESKTOP)/tests: tests/test_main.cpp $(DSP_SRC) $(DSP_HDR)
 	@mkdir -p $(@D)
@@ -70,6 +71,10 @@ $(DESKTOP)/tests: tests/test_main.cpp $(DSP_SRC) $(DSP_HDR)
 $(DESKTOP)/render: tools/render.cpp tools/wav.h $(DSP_SRC) $(DSP_HDR)
 	@mkdir -p $(@D)
 	$(DESKTOP_CXX) $(DESKTOP_CXXFLAGS) -o $@ tools/render.cpp $(DSP_SRC)
+
+$(DESKTOP)/ui_preview: tools/ui_preview.cpp $(DSP_SRC) $(DSP_HDR)
+	@mkdir -p $(@D)
+	$(DESKTOP_CXX) $(DESKTOP_CXXFLAGS) -o $@ tools/ui_preview.cpp $(DSP_SRC)
 
 $(DESKTOP)/lpc_encode: tools/lpc_encode.cpp tools/wav.h $(ENCODER_SRC) $(DSP_HDR)
 	@mkdir -p $(@D)
@@ -80,6 +85,9 @@ test: $(DESKTOP)/tests
 
 render: $(DESKTOP)/render
 	./$(DESKTOP)/render build/render.wav
+
+screens: $(DESKTOP)/ui_preview
+	./$(DESKTOP)/ui_preview
 
 # Word indices can shift when the vocabulary changes, so phrases are rebuilt too.
 words: $(DESKTOP)/lpc_encode tools/words.txt tools/phrases.txt tools/make_words.sh tools/make_phrases.py
