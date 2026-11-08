@@ -14,6 +14,10 @@
 #   make screens       print the display screens as ASCII art
 #   make panel         regenerate res/CVSpeak.svg + src/panel_layout.hpp from tools/make_panel.py
 #   make panel-preview  same, plus build/panel_preview.png with component outlines (macOS)
+#
+# Firmware (Pico SDK in sdk/pico-sdk, see firmware/README.md):
+#   make firmware      build build/firmware/cvspeak.uf2
+#   make firmware-breadboard  same for a bare Pico 2 (build/firmware-breadboard/cvspeak.uf2)
 #   make words         regenerate dsp/src/words_generated.cpp from tools/words.txt + phrases.txt (macOS)
 #   make phrases       regenerate dsp/src/phrases_generated.cpp from tools/phrases.txt
 
@@ -62,7 +66,7 @@ ENCODER_SRC := dsp/src/lpc_format.cpp dsp/src/lpc_analysis.cpp
 RACK_USER_DIR_MAC ?= $(HOME)/Library/Application Support/Rack2
 RACK_PLUGINS := $(RACK_USER_DIR_MAC)/plugins-mac-arm64
 
-.PHONY: desktop test render screens panel panel-preview words phrases vcv vcv-install vcv-link
+.PHONY: desktop test render screens panel panel-preview firmware firmware-breadboard words phrases vcv vcv-install vcv-link
 
 desktop: $(DESKTOP)/tests $(DESKTOP)/render $(DESKTOP)/lpc_encode $(DESKTOP)/ui_preview
 
@@ -98,6 +102,14 @@ words: $(DESKTOP)/lpc_encode tools/words.txt tools/phrases.txt tools/make_words.
 
 phrases:
 	python3 tools/make_phrases.py
+
+firmware:
+	cmake -S firmware -B build/firmware -DPICO_SDK_PATH=$(CURDIR)/sdk/pico-sdk
+	cmake --build build/firmware -j8
+
+firmware-breadboard:
+	cmake -S firmware -B build/firmware-breadboard -DPICO_SDK_PATH=$(CURDIR)/sdk/pico-sdk -DCVSPEAK_BREADBOARD=ON
+	cmake --build build/firmware-breadboard -j8
 
 panel:
 	python3 tools/make_panel.py

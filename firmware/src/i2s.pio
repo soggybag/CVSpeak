@@ -1,0 +1,56 @@
+; Full-duplex I2S slave for the ES8388, which is the clock master
+; (MCLK 12 MHz, BCLK = MCLK/5 = 2.4 MHz, LRCK = 48 kHz: 25 BCLKs per channel).
+; 16-bit words, MSB first, one BCLK after each LRCK edge (I2S format).
+;
+; Pins: IN base = DIN (codec ASDOUT), IN base + 1 = BCLK, IN base + 2 = LRCK.
+;       OUT base = DOUT (codec DSDIN).
+; Each frame is one 32-bit FIFO word: left in [31:16], right in [15:0].
+; The program never stalls on the FIFOs: an empty TX FIFO sends silence
+; (X holds 0) and a full RX FIFO drops the frame. It re-syncs on every LRCK
+; falling edge, so the odd BCLK count per channel doesn't matter.
+;
+; The codec changes data and LRCK on BCLK falling edges and samples DSDIN on
+; rising edges, so we output on falling edges and sample on rising edges.
+
+.program i2s_duplex
+.wrap_target
+    wait 1 pin 2        ; be in the right channel...
+    wait 0 pin 2        ; ...so this catches the start of a left word
+    pull noblock        ; next frame, or X (= 0) if the FIFO is empty
+    wait 1 pin 1        ; skip the one-BCLK I2S delay
+    set y, 15
+left_bit:
+    wait 0 pin 1
+    out pins, 1
+    wait 1 pin 1
+    in pins, 1
+    jmp y-- left_bit
+    wait 1 pin 2        ; right word starts
+    wait 1 pin 1        ; I2S delay
+    set y, 15
+right_bit:
+    wait 0 pin 1
+    out pins, 1
+    wait 1 pin 1
+    in pins, 1
+    jmp y-- right_bit
+    push noblock
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void i2s_duplex_program_init(PIO pio, uint sm, uint offset, uint dout_pin, uint din_pin) {
+    pio_sm_config c = i2s_duplex_program_get_default_config(offset);
+    sm_config_set_out_pins(&c, dout_pin, 1);
+    sm_config_set_in_pins(&c, din_pin);
+    sm_config_set_out_shift(&c, false, false, 32);  // MSB first, no autopull
+    sm_config_set_in_shift(&c, false, false, 32);   // MSB first, no autopush
+    pio_gpio_init(pio, dout_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, dout_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, din_pin, 3, false);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_exec(pio, sm, pio_encode_set(pio_x, 0));  // silence for an empty TX FIFO
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

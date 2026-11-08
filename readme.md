@@ -78,6 +78,8 @@ make dist          # package dist/CVSpeak-<version>-<os>-<cpu>.vcvplugin to shar
 
 Restart Rack after installing, since Rack only loads plugins at startup. If you'd rather skip packaging while iterating, run `make vcv-link` once. It links Rack's plugin folder to this repository, and after that each change only needs `make` and a Rack restart. Don't mix the two: `make install` would put a packaged copy next to the link, so use `make vcv-install`, which refuses to run while the link exists.
 
+The hardware lives in [`hardware/`](hardware/) and the Pico 2 firmware in [`firmware/`](firmware/) (`make firmware`; see its README).
+
 The repository root is the plugin folder (`plugin.json`, `src/`, `res/`), which is the layout the VCV Library build expects.
 
 ### Releases

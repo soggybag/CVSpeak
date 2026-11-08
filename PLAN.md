@@ -34,19 +34,19 @@ We prototype it as a VCV Rack module first, using a DSP core that is shared with
 3. **Channel vocoder mode** *(stretch goal)*: a 12–16-band vocoder. **Mod In** is the modulator (a live voice, drums, etc.) and **Carrier In** is the carrier. If Mod In is empty, the module's own speech becomes the modulator.
 
 ## 2. Panel I/O draft (14 HP)
-- **Display**: 128×64 OLED (1.3" SH1106 or 0.96" SSD1306)
+- **Display**: 128×64 OLED, 1.3" SH1106, SPI
 - **Encoder** (with push) and a **Back/Shift button**
 - **Speak button**: a manual trigger that ORs with TRIG. It's needed to kick-start an EOW → TRIG self-patch, since EOW can't fire until a word has played.
-- **Knobs**: Pitch, Speed, Formant, Bend, Blend. Word/Phrase selection is on the encoder, and its CV is added on top. Intonation and Chirp (added in Phase 1) could be knobs or menu settings; decide from VCV play-testing.
+- **Knobs**: Pitch, Speed, Formant, Bend, Blend, Intonation. Word/Phrase selection is on the encoder, and its CV is added on top. Mode and Chirp are menu settings (decided in Phase 3).
 - **Inputs**: Trig, Reset, Word/Phrase CV, Pitch 1V/oct, Speed CV, Formant CV, Bend CV, Carrier In, Mod In
 - **Outputs**: Audio Out, EOW
 
 ## 2a. Manufacturing constraints
 - The PCBs will be **assembled by JLCPCB using SMD parts**. Prefer **LCSC Basic** parts, and use **Extended** parts only when no Basic part fits. Each Extended part adds a setup fee per order, so keep the number of different Extended parts low.
 - Use **0603 passives** from the Basic library, and pick standard values (E12/E24 series) that are in Basic.
-- Expected Extended parts: the RP2350 itself, QSPI flash, the audio codec, a precision voltage reference, and possibly the op-amps. *Check stock on LCSC before locking the schematic.*
-- **Through-hole panel parts**: jacks, pots, the encoder, the OLED and the power header. These are usually hand-soldered or done with JLC's paid THT assembly. Use **two boards**: an SMD main board, and a control board that carries the panel parts and stacks on headers. This is the Ornament & Crime layout.
-- Keep the design JLC-friendly: 2- or 4-layer board, standard via sizes, no parts on the bottom side unless needed, and fiducials and tooling holes per JLC's guidelines.
+- Expected Extended parts: the audio codec (ES8388), the buck, the op-amps, and in v1 the RP2350 and its QSPI flash. *Check stock on LCSC before locking the schematic.*
+- **Through-hole panel parts**: jacks, pots, the encoder, the OLED and the power header. These are hand-soldered. **One board** (decided 2026-11-07, as on Palimpsest): panel parts on the front; the Pico 2, power header and all SMD parts on the back, assembled by JLC.
+- Keep the design JLC-friendly: 2- or 4-layer board, standard via sizes, and fiducials and tooling holes per JLC's guidelines.
 
 ## 3. Architecture
 ```
@@ -122,23 +122,27 @@ CVSpeak/
 - Channel vocoder in the core, with a tunable band count and an envelope follower.
 - Measure its CPU cost and confirm it fits the RP2350 budget at 32 kHz on one core.
 
-### Phase 5: Firmware on a Pico 2 breadboard
-- Pico 2 + audio codec breakout + pots + CV scaling circuits on a breadboard.
-- Core 0 handles UI and CV; core 1 runs the audio DSP, with I2S driven by DMA.
-- Store the word bank in QSPI flash.
-- ✅ Done when: the breadboard sounds the same as the VCV version.
+### Phase 5: Firmware (Pico 2 + ES8388 breakout), in parallel with Phase 6
+Mitchell builds and designs Eurorack PCBs, so there's no full analog breadboard: the analog blocks come from Palimpsest and are benched on its boards (`hardware/docs/Hardware Decisions.md`).
+- `firmware/` with the Pico SDK, sharing `dsp/` with VCV. **Skeleton done (2026-11-07):** builds with SDK 2.3.1 (`make firmware`, `make firmware-breadboard`), about 59 KB of flash. ES8388 setup, I2S PIO, SH1106, mux/ADC/encoder controls, UI and display on core 0, audio on core 1, a USB serial load meter. Not yet run on hardware: see the bring-up checklist in `firmware/README.md`.
+- Breadboard: a bare Pico 2, an ES8388 breakout, the 1.3" OLED and an encoder. Prove the I2C setup, the 12 MHz MCLK on GPOUT0, I2S both ways, the screens, and the CPU budget at Formant +1.5 octaves.
+- Core 0 handles UI and CV; core 1 runs the audio DSP, with I2S driven by DMA. The word bank lives in QSPI flash.
+- ✅ Done when: it sounds the same as the VCV version.
 
-### Phase 6: Hardware
-- KiCad: ±12 V power, reverse-polarity protection, 3.3 V regulator, op-amp CV scaling and clamps, transistor or comparator gate inputs, ±5 V output buffer.
-- 1V/oct calibration routine.
-- Panel design, then order the first-revision PCBs.
+### Phase 6: Hardware (dev board v0)
+- Decisions, pin map and test plan: `hardware/docs/`.
+- One board with a Pico 2 module, ES8388, Palimpsest's power / CV / gate / output blocks, two 74HC4051s, and the 1.3" OLED.
+- Schematic and board scripted after Palimpsest's flow. The panel PCB is generated from `tools/make_panel.py`'s layout.
+- Bench the shared blocks on the Palimpsest boards (arriving the week of 2026-11-09) before ordering.
+- 1V/oct calibration routine in firmware.
+- v1 later: chip-down RP2350 for cost.
 
 ### Later ideas
 - Load custom words and phrases over USB (mass storage or WebSerial).
 - A SAM- or Votrax-style phoneme mode for arbitrary words.
 
 ## 5. Open decisions
-1. **Audio I/O chip**: vocoder mode needs clean audio inputs, and the RP2350's internal ADC is too noisy for that. Proposed: a stereo I2S codec (e.g. WM8731 / WM8960 / TLV320AIC3204) that handles both inputs and the output, in place of a DAC-only PCM5102A. *This affects the hardware, so decide before Phase 5, and choose based on what LCSC has in stock.*
+1. ~~**Audio I/O chip**~~: decided. **ES8388** (LCSC C365736), with a 12 MHz MCLK from the Pico's crystal (2026-11-07). See `hardware/docs/Hardware Decisions.md`.
 2. **Width**: 14 HP for now. Revisit once the VCV panel layout is settled.
 3. **Vocabulary**: what words or phrases to ship, and whose voice records them.
 4. ~~**License**~~: decided. GPL-3.0-or-later for everything (`LICENSE`, 2026-11-07).
