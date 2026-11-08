@@ -102,7 +102,7 @@ CVSpeak/
   - Main screen, Phrase mode: the phrase word-wrapped, spoken word inverted, next word underlined, scrolling, word position in the header.
   - The header shows the SEL CV offset (`CV+3`).
   - Menu: Mode, Intonation, Chirp (5% steps).
-- **Decided: Intonation, Chirp and Mode move into the menu.** That leaves 5 knobs (Pitch, Speed, Formant, Bend, Blend), as in section 2, and saves about $3–5 of pots per module. Back on the main screen toggles Word/Phrase for quick live switching.
+- **Decided: Chirp and Mode move into the menu.** Intonation was in the menu too, but came back as a knob in 3c: it's the most playable of the three. Back on the main screen toggles Word/Phrase for quick live switching.
 - `SelectCv`: SEL CV with hysteresis (0.15 semitone past the halfway point), so a CV sitting on a boundary doesn't flicker. Shared, so the hardware gets it too.
 - VCV:
   - An endless encoder widget (drag or scroll to turn, click to push) plus Back, Speak and the display grouped together at the top.
@@ -112,9 +112,11 @@ CVSpeak/
 - `make screens` prints every screen as ASCII art.
 - 32 unit tests.
 
-**Remaining (3c):**
-- Final SVG panel artwork at the real HP size, with labels as paths, matching section 2 and the layout tried here.
-- ✅ Done when: the module is fun to patch. Iterate on the controls here, where changes are cheap.
+**3c ✅ (2026-11-07): panel artwork**
+- `tools/make_panel.py` is the single source of the layout. It writes `res/CVSpeak.svg` and `src/panel_layout.hpp` (positions the VCV widgets use), and fails if any component bodies or labels overlap. `make panel`; `make panel-preview` also renders `build/panel_preview.png` with component outlines.
+- Two colours, so it can be made as an FR4 panel at JLCPCB: red solder mask, white silkscreen. Labels use the OLED's own 5×7 pixel font, drawn as paths (stdlib Python, no font tools needed).
+- Layout, top to bottom: title; display on the left with the encoder and Back in a column to its right (O&C style); Pitch, Speed, Formant; Bend, Blend, Intonation; 8 input jacks in two rows; Speak beside TRIG's column, and EOW and OUT on a white output block. Putting the encoder beside the display, rather than in a row under it, freed a knob slot, which went to Intonation. The space between Speak and the outputs is free for a future Mod In (Phase 4).
+- ✅ Done when: the module is fun to patch. Keep iterating on the controls here, where changes are cheap; the layout is one script away.
 
 ### Phase 4: Vocoder mode (stretch)
 - Channel vocoder in the core, with a tunable band count and an envelope follower.
@@ -174,8 +176,14 @@ Things the VCV prototype has settled that the firmware and PCB must match, so th
 
 ### Controls
 - SPEAK: a momentary tactile button that ORs with TRIG (needed to kick-start an EOW → TRIG self-patch).
-- The encoder and back button take over Mode, Intonation and Chirp (decided in 3b): 5 pots, 1 encoder with push, and 2 buttons (Back, Speak).
+- The encoder and back button take over Mode and Chirp: 6 pots (Pitch, Speed, Formant, Bend, Blend, Intonation), 1 encoder with push, and 2 buttons (Back, Speak).
 - Display: 1.3" 128×64 OLED, SH1106, SPI version (7-pin), on the control board. Send the framebuffer by DMA. Its active area is 29.42 × 14.71 mm; the VCV panel reserves that area (drawn 1.5× by default).
+
+### Panel and control board
+- Use the coordinates in `tools/make_panel.py` (also in `src/panel_layout.hpp`) for the control board footprints, so the panel and PCB line up.
+- **Check the OLED module's outline before committing the layout.** A 1.3" SPI module is about 35 × 33 mm, larger than its glass. On the left of the panel it should span roughly x 3–38 mm and y 10–43.5 mm: below the top rail zone (about 10 mm), left of the encoder column (EC11 body at about x 55–67 mm), and above the first pot row (bodies from about y 45 mm). Confirm against the real module's drawing.
+- The hardware's display window is the OLED's glass (about 31 × 17 mm visible), smaller than the VCV view, which draws it 1.5×.
+- Bottom outputs sit at y = 113.2 mm. A jack body (about 9 mm square) then ends near 117.7 mm, clear of the bottom rail zone.
 
 ### Memory
 - The word bank is about 110 bytes per word (51 words ≈ 5.6 KB). Even thousands of words fit easily in QSPI flash.

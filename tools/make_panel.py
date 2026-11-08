@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Generates the panel artwork and the matching widget positions.
+
+    make panel        writes res/CVSpeak.svg and src/panel_layout.hpp
+    make panel-preview  also draws component outlines into build/panel_preview.png
+
+The layout below is the single source of truth for where everything sits, in
+mm from the panel's top-left corner. The VCV widgets read it through
+src/panel_layout.hpp, and the KiCad control board should use the same numbers.
+
+Labels use CVSpeak's own 5x7 pixel font (parsed from dsp/src/framebuffer.cpp,
+the same font as the OLED), drawn as paths because Rack's SVG renderer ignores
+<text>. Only stdlib Python is needed.
+
+The artwork is two colours so it can be made as an FR4 panel at JLCPCB: red
+solder mask with white silkscreen. Areas meant to be white are solid
+silkscreen; red text on them is silkscreen left out.
+"""
+
+import os
+import re
+import subprocess
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ---- look -------------------------------------------------------------------
+
+W, H = 71.12, 128.5           # 14 HP
+RED = "#c4312a"                # solder mask
+WHITE = "#f3efe4"              # silkscreen
+GLASS = "#06090b"              # display window (VCV draws it; shown here for the preview)
+PX = 0.30                      # label pixel size in mm: 2.1 mm tall capitals
+TITLE_PX = 0.62
+
+# ---- layout (mm) --------------------------------------------------------------
+
+DISPLAY = (26.95, 21.0)        # left; the encoder column is to its right        # centre of the OLED's active area
+# Active area of a 1.3" 128x64 OLED and the VCV view's enlargement. The VCV
+# display widget draws its own glass 1.5 mm around this.
+OLED = (29.42, 14.71)
+VCV_DISPLAY_SCALE = 1.5
+
+# Component kinds: visual radius (mm) and the label's gap above the body.
+KINDS = {
+    "knob":    dict(r=5.1, suffix="Knob"),
+    "encoder": dict(r=6.1, suffix=""),
+    "button":  dict(r=3.0, suffix="Button"),
+    "in":      dict(r=4.0, suffix="In"),
+    "out":     dict(r=4.0, suffix="Out"),
+    "light":   dict(r=1.1, suffix="Light"),
+}
+LABEL_GAP = 0.8
+
+JX = [10.5, 27.2, 43.9, 60.6]  # jack columns
+KX = [14.0, 35.56, 57.12]      # knob columns
+
+ITEMS = [
+    # kind, C++ name, x, y, label
+    ("encoder", "Encoder", 61.3, 17.5, "SELECT"),
+    ("button", "Back", 61.3, 33.0, "BACK"),
+    ("light", "Speaking", 66.6, 33.0, ""),
+    ("knob", "Pitch", KX[0], 50.0, "PITCH"),
+    ("knob", "Speed", KX[1], 50.0, "SPEED"),
+    ("knob", "Formant", KX[2], 50.0, "FORMANT"),
+    ("knob", "Bend", KX[0], 68.0, "BEND"),
+    ("knob", "Blend", KX[1], 68.0, "BLEND"),
+    ("knob", "Intonation", KX[2], 68.0, "INTONE"),
+    ("in", "Trig", JX[0], 90.0, "TRIG"),
+    ("in", "Reset", JX[1], 90.0, "RESET"),
+    ("in", "Voct", JX[2], 90.0, "V/OCT"),
+    ("in", "Select", JX[3], 90.0, "SEL"),
+    ("in", "Speed", JX[0], 101.3, "SPEED"),
+    ("in", "Formant", JX[1], 101.3, "FORM"),
+    ("in", "Bend", JX[2], 101.3, "BEND"),
+    ("in", "Carrier", JX[3], 101.3, "CARRIER"),
+    ("button", "Speak", JX[0], 113.2, "SPEAK"),
+    ("out", "Eow", JX[2], 113.2, "EOW"),
+    ("out", "Audio", JX[3], 113.2, "OUT"),
+]
+
+# Filled white box behind the outputs (red labels inside it).
+OUT_BOX = (35.6, 105.8, 68.6 - 35.6, 118.6 - 105.8)
+
+# ---- pixel font ---------------------------------------------------------------
+
+
+def load_font():
+    src = open(os.path.join(ROOT, "dsp/src/framebuffer.cpp")).read()
+    font = {}
+    for m in re.finditer(r"G\('((?:\\.|[^'])+)',((?:\s*\"[.#]{5}\",?){7})\)", src):
+        ch = m.group(1).encode().decode("unicode_escape")
+        rows = re.findall(r'"([.#]{5})"', m.group(2))
+        font[ch] = rows
+    if "A" not in font or len(font) < 60:
+        sys.exit("make_panel.py: couldn't read the font from framebuffer.cpp")
+    return font
+
+
+FONT = load_font()
+
+
+def text_width(s, px):
+    return (len(s) * 6 - 1) * px if s else 0.0
+
+
+def text_path(s, x, y, px):
+    """Path data for text with its top-left at (x, y): one rect per run of pixels."""
+    d = []
+    for i, ch in enumerate(s.upper()):
+        rows = FONT.get(ch, FONT["?"])
+        gx = x + i * 6 * px
+        for r, row in enumerate(rows):
+            c = 0
+            while c < 5:
+                if row[c] != "#":
+                    c += 1
+                    continue
+                start = c
+                while c < 5 and row[c] == "#":
+                    c += 1
+                d.append(f"M{gx + start * px:.3f} {y + r * px:.3f}h{(c - start) * px:.3f}v{px:.3f}h{-(c - start) * px:.3f}z")
+    return "".join(d)
+
+
+def label(s, cx, bottom, px=PX, fill=WHITE):
+    """Centred text whose bottom edge sits at `bottom`."""
+    x = cx - text_width(s, px) / 2
+    return f'<path fill="{fill}" d="{text_path(s, x, bottom - 7 * px, px)}"/>'
+
+
+# ---- output -------------------------------------------------------------------
+
+
+def panel_svg(preview=False):
+    out = []
+    a = out.append
+    a('<?xml version="1.0" encoding="UTF-8"?>')
+    a("<!-- Generated by tools/make_panel.py. Edit the layout there and run `make panel`. -->")
+    if preview:  # square, so the Quick Look thumbnail shows the whole panel
+        pad = (H - W) / 2
+        a(f'<svg xmlns="http://www.w3.org/2000/svg" width="{H}mm" height="{H}mm" viewBox="{-pad:.3f} 0 {H} {H}">')
+        a(f'<rect x="{-pad:.3f}" y="0" width="{H}" height="{H}" fill="#777"/>')
+    else:
+        a(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}mm" height="{H}mm" viewBox="0 0 {W} {H}">')
+    a(f'<rect x="0" y="0" width="{W}" height="{H}" fill="{RED}"/>')
+
+    # Title between the top screws.
+    a(label("CVSPEAK", W / 2, 6.6, TITLE_PX))
+
+    # Display: a white frame line around the VCV view's glass.
+    dw, dh = OLED[0] * VCV_DISPLAY_SCALE + 3.0, OLED[1] * VCV_DISPLAY_SCALE + 3.0
+    a(f'<rect x="{DISPLAY[0] - dw / 2 - 0.9:.3f}" y="{DISPLAY[1] - dh / 2 - 0.9:.3f}" width="{dw + 1.8:.3f}" '
+      f'height="{dh + 1.8:.3f}" rx="1.6" fill="none" stroke="{WHITE}" stroke-width="0.35"/>')
+    if preview:
+        a(f'<rect x="{DISPLAY[0] - dw / 2:.3f}" y="{DISPLAY[1] - dh / 2:.3f}" width="{dw:.3f}" height="{dh:.3f}" '
+          f'rx="0.8" fill="{GLASS}"/>')
+
+    # Outputs on solid white.
+    x, y, w, h = OUT_BOX
+    a(f'<rect x="{x}" y="{y}" width="{w:.3f}" height="{h:.3f}" rx="1.6" fill="{WHITE}"/>')
+
+    for kind, name, cx, cy, text in ITEMS:
+        r = KINDS[kind]["r"]
+        if text:
+            a(label(text, cx, cy - r - LABEL_GAP, fill=RED if kind == "out" else WHITE))
+        if preview:
+            a(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="#222" stroke="#888" stroke-width="0.2"/>')
+    a("</svg>")
+    return "\n".join(out) + "\n"
+
+
+def layout_hpp():
+    lines = [
+        "#pragma once",
+        "// Generated by tools/make_panel.py, together with res/CVSpeak.svg. Edit the",
+        "// layout there and run `make panel`. Positions in mm from the panel's top-left.",
+        "",
+        "namespace panel {",
+        "",
+        "struct Mm {",
+        "    float x, y;",
+        "};",
+        "",
+        f"constexpr Mm kDisplay{{{DISPLAY[0]}f, {DISPLAY[1]}f}};  // centre of the active area",
+        f"constexpr Mm kOledSize{{{OLED[0]}f, {OLED[1]}f}};       // 1.3\" 128x64 active area",
+        f"constexpr float kVcvDisplayScale = {VCV_DISPLAY_SCALE}f;",
+        "",
+    ]
+    for kind, name, cx, cy, _ in ITEMS:
+        lines.append(f"constexpr Mm k{name}{KINDS[kind]['suffix']}{{{cx}f, {cy}f}};")
+    lines += ["", "}  // namespace panel", ""]
+    return "\n".join(lines)
+
+
+def check_overlaps():
+    """Fails if two component bodies, or a label and a body, overlap."""
+    boxes = []
+    for kind, name, cx, cy, text in ITEMS:
+        r = KINDS[kind]["r"]
+        boxes.append((name + " body", cx - r, cy - r, cx + r, cy + r))
+        if text:
+            w = text_width(text, PX)
+            b = cy - r - LABEL_GAP
+            boxes.append((name + " label", cx - w / 2, b - 7 * PX, cx + w / 2, b))
+    dw, dh = OLED[0] * VCV_DISPLAY_SCALE + 3.0, OLED[1] * VCV_DISPLAY_SCALE + 3.0
+    boxes.append(("display", DISPLAY[0] - dw / 2, DISPLAY[1] - dh / 2, DISPLAY[0] + dw / 2, DISPLAY[1] + dh / 2))
+    problems = []
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            n1, a0, a1, a2, a3 = boxes[i]
+            n2, b0, b1, b2, b3 = boxes[j]
+            if a0 < b2 and b0 < a2 and a1 < b3 and b1 < a3:
+                problems.append(f"{n1} overlaps {n2}")
+    for name, x0, y0, x1, y1 in boxes:
+        if x0 < 0.5 or x1 > W - 0.5:
+            problems.append(f"{name} is off the panel")
+    return problems
+
+
+def main():
+    problems = check_overlaps()
+    if problems:
+        sys.exit("make_panel.py: layout problems:\n  " + "\n  ".join(problems))
+    open(os.path.join(ROOT, "res/CVSpeak.svg"), "w").write(panel_svg())
+    open(os.path.join(ROOT, "src/panel_layout.hpp"), "w").write(layout_hpp())
+    print("wrote res/CVSpeak.svg and src/panel_layout.hpp")
+    if "--preview" in sys.argv:
+        build = os.path.join(ROOT, "build")
+        os.makedirs(build, exist_ok=True)
+        svg = os.path.join(build, "panel_preview.svg")
+        open(svg, "w").write(panel_svg(preview=True))
+        subprocess.run(["qlmanage", "-t", "-s", "1000", "-o", build, svg],
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        png = svg + ".png"
+        if os.path.exists(png):
+            os.replace(png, os.path.join(build, "panel_preview.png"))
+            print("wrote build/panel_preview.png")
+        else:
+            print("preview: open build/panel_preview.svg in a browser")
+
+
+if __name__ == "__main__":
+    main()

@@ -12,6 +12,8 @@
 #   make test          build and run unit tests
 #   make render        speak every word into build/render.wav
 #   make screens       print the display screens as ASCII art
+#   make panel         regenerate res/CVSpeak.svg + src/panel_layout.hpp from tools/make_panel.py
+#   make panel-preview  same, plus build/panel_preview.png with component outlines (macOS)
 #   make words         regenerate dsp/src/words_generated.cpp from tools/words.txt + phrases.txt (macOS)
 #   make phrases       regenerate dsp/src/phrases_generated.cpp from tools/phrases.txt
 
@@ -60,7 +62,7 @@ ENCODER_SRC := dsp/src/lpc_format.cpp dsp/src/lpc_analysis.cpp
 RACK_USER_DIR_MAC ?= $(HOME)/Library/Application Support/Rack2
 RACK_PLUGINS := $(RACK_USER_DIR_MAC)/plugins-mac-arm64
 
-.PHONY: desktop test render screens words phrases vcv vcv-install vcv-link
+.PHONY: desktop test render screens panel panel-preview words phrases vcv vcv-install vcv-link
 
 desktop: $(DESKTOP)/tests $(DESKTOP)/render $(DESKTOP)/lpc_encode $(DESKTOP)/ui_preview
 
@@ -96,6 +98,12 @@ words: $(DESKTOP)/lpc_encode tools/words.txt tools/phrases.txt tools/make_words.
 
 phrases:
 	python3 tools/make_phrases.py
+
+panel:
+	python3 tools/make_panel.py
+
+panel-preview:
+	python3 tools/make_panel.py --preview
 
 # Aliases from when the plugin lived in vcv/.
 vcv: all

@@ -75,7 +75,6 @@ void drawHeader(Framebuffer& fb, const char* title, int index, int count, int cv
 void Ui::clampSettings() {
     settings_.word = kNumWords > 0 ? wrapIndex(settings_.word, kNumWords) : 0;
     settings_.phrase = kNumPhrases > 0 ? wrapIndex(settings_.phrase, kNumPhrases) : 0;
-    settings_.intonation = stepPercent(settings_.intonation, 0);
     settings_.chirp = stepPercent(settings_.chirp, 0);
 }
 
@@ -117,7 +116,6 @@ void Ui::editItem(int detents) {
             if (detents % 2 != 0)
                 settings_.mode = settings_.mode == Mode::Word ? Mode::Phrase : Mode::Word;
             break;
-        case kItemIntonation: settings_.intonation = stepPercent(settings_.intonation, detents); break;
         case kItemChirp: settings_.chirp = stepPercent(settings_.chirp, detents); break;
         default: break;
     }
@@ -230,10 +228,6 @@ void Ui::renderMenu(Framebuffer& fb) const {
             case kItemMode:
                 label = "MODE";
                 value.add(settings_.mode == Mode::Phrase ? "PHRASE" : "WORD");
-                break;
-            case kItemIntonation:
-                label = "INTONATION";
-                value.add(percent(settings_.intonation)).add("%");
                 break;
             case kItemChirp:
                 label = "CHIRP";

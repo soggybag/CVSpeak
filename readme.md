@@ -4,7 +4,7 @@ CVSpeak is a Eurorack speech synthesizer in the spirit of the Speak & Spell. It 
 
 The hardware will be an RP2350-based module with an OLED display and an encoder, in the style of Ornament & Crime, and will be built with SMD parts assembled by JLCPCB. The module is being prototyped first as a **VCV Rack 2 plugin**. The plugin and the future firmware share the same C++ DSP core, so what you hear in Rack is what the module will do.
 
-**Status:** early development. The speech engine, Word and Phrase modes, the display and menu, and the VCV plugin work. The final panel design, vocoder and hardware are still to come. See [PLAN.md](PLAN.md) for the full roadmap.
+**Status:** early development. The speech engine, Word and Phrase modes, the display and menu, the panel and the VCV plugin work. The vocoder and hardware are still to come. See [PLAN.md](PLAN.md) for the full roadmap.
 
 ## Features
 
@@ -30,9 +30,10 @@ The display and menu are shared code: VCV draws the same 128×64 pixels the hard
 
 | Control | What it does |
 |---|---|
-| **Encoder** (SELECT / MENU) | Main screen: turn to choose the word (Word mode) or phrase (Phrase mode). Click to open the menu. Drag up and down or use the scroll wheel to turn it. |
+| **Encoder** (SELECT) | Main screen: turn to choose the word (Word mode) or phrase (Phrase mode). Click to open the menu. Drag up and down or use the scroll wheel to turn it. |
 | **BACK** | Main screen: switches between Word and Phrase mode. In the menu: stops editing, then leaves the menu. |
-| **Menu** | MODE (Word / Phrase), INTONATION (0% = monotone at the set pitch, 100% = the recorded pitch contour), CHIRP (excitation character, from clean to TI-style buzz). Turn to pick a setting, click to edit it, turn to change it, click or BACK when done. |
+| **Menu** | MODE (Word / Phrase) and CHIRP (excitation character, from clean to TI-style buzz). Turn to pick a setting, click to edit it, turn to change it, click or BACK when done. |
+| **INTONE** | 0% = monotone at the set pitch, 100% = the recorded pitch contour. |
 | **PITCH** / **V/OCT** | Speaking pitch. The word's median pitch lands on this note (default C3). |
 | **SPEED** | How fast the word is spoken, without changing pitch. |
 | **FORMANT** / **FORM** CV | Vocal tract size, ±1 octave, without changing pitch or speed. |
@@ -69,6 +70,7 @@ Then:
 make test          # run the DSP core's unit tests
 make render        # speak every word into build/render.wav (no Rack needed)
 make screens       # print the display screens as ASCII art (no Rack needed)
+make panel         # regenerate the panel SVG and widget positions from tools/make_panel.py
 make               # build the VCV Rack plugin
 make install       # package it into Rack 2's plugin folder
 make dist          # package dist/CVSpeak-<version>-<os>-<cpu>.vcvplugin to share

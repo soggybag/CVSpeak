@@ -9,7 +9,8 @@
 //   Editing       turn: change the value            push / back: done
 //
 // The UI owns the settings below; the wrapper saves them (patch JSON in VCV,
-// flash on the hardware) and feeds them to the Voice.
+// flash on the hardware) and feeds them to the Voice. Intonation is a knob,
+// not a setting.
 
 #include "cvspeak/framebuffer.h"
 #include "cvspeak/sequencer.h"
@@ -20,7 +21,6 @@ struct Settings {
     Mode mode = Mode::Word;
     int word = 0;             // selection in Word mode (index into kWords)
     int phrase = 0;           // selection in Phrase mode (index into kPhrases)
-    float intonation = 1.f;   // 0 = monotone, 1 = recorded contour
     float chirp = 0.5f;       // excitation character
 };
 
@@ -38,7 +38,7 @@ struct UiStatus {
 class Ui {
 public:
     enum class Screen : uint8_t { Main, Menu };
-    enum Item : uint8_t { kItemMode, kItemIntonation, kItemChirp, kNumItems };
+    enum Item : uint8_t { kItemMode, kItemChirp, kNumItems };
 
     void turn(int detents);
     void push();

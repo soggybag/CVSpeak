@@ -657,15 +657,14 @@ static void testUiNavigation() {
     CHECK(ui.cursor() == 0);  // clamps, doesn't wrap
     ui.turn(10);
     CHECK(ui.cursor() == Ui::kNumItems - 1);
-    ui.turn(-1);
-    CHECK(ui.cursor() == Ui::kItemIntonation);
+    CHECK(ui.cursor() == Ui::kItemChirp);
 
     ui.push();
     CHECK(ui.editing());
     ui.turn(-3);
-    CHECK(std::fabs(ui.settings().intonation - 0.85f) < 1e-4f);
-    ui.turn(10);
-    CHECK(ui.settings().intonation == 1.f);  // clamps at 100%
+    CHECK(std::fabs(ui.settings().chirp - 0.35f) < 1e-4f);
+    ui.turn(20);
+    CHECK(ui.settings().chirp == 1.f);  // clamps at 100%
     ui.push();
     CHECK(!ui.editing());
 

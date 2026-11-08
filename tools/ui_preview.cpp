@@ -49,9 +49,9 @@ int main() {
 
     ui.push();
     ui.turn(1);
-    show("Menu, cursor on Intonation", ui, st);
+    show("Menu, cursor on Chirp", ui, st);
     ui.push();
     ui.turn(-3);
-    show("Menu, editing Intonation", ui, st);
+    show("Menu, editing Chirp", ui, st);
     return 0;
 }
