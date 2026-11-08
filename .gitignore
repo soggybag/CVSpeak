@@ -1,0 +1,20 @@
+# Rack SDK (downloaded, not committed — see readme.md)
+sdk/
+
+# Build output
+build/
+vcv/build/
+vcv/dist/
+vcv/plugin.dylib
+vcv/plugin.so
+vcv/plugin.dll
+*.o
+*.wav
+
+# KiCad backups / local state
+hardware/**/*-backups/
+hardware/**/*.lck
+hardware/**/fp-info-cache
+hardware/**/*.kicad_prl
+
+.DS_Store

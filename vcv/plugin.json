@@ -1,0 +1,23 @@
+{
+  "slug": "CVSpeak",
+  "name": "CVSpeak",
+  "version": "2.0.0",
+  "license": "GPL-3.0-or-later",
+  "brand": "CVSpeak",
+  "author": "Mitchell Hudson",
+  "authorEmail": "",
+  "authorUrl": "",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "CVSpeak",
+      "name": "CVSpeak",
+      "description": "LPC speech synthesizer with word and phrase modes",
+      "tags": ["Synth voice", "Oscillator"]
+    }
+  ]
+}
