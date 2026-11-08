@@ -1,5 +1,6 @@
-# Built-in vocabulary, one word per line. `make words` regenerates
-# dsp/src/words_generated.cpp from this list using macOS `say`.
+# Built-in vocabulary, one word per line (single words only: phrases.txt
+# splits on spaces). `make words` regenerates dsp/src/words_generated.cpp
+# from this list using macOS `say`. Order matters: it is the word index.
 zero
 one
 two

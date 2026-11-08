@@ -40,14 +40,14 @@ void Voice::setSampleRate(float sampleRate) {
 void Voice::process(const VoiceInputs& in, float* out, int n, VoiceOutputs& outs) {
     outs.eow = false;
 
-    if (in.reset) synth_.stop();
+    if (in.reset) sequencer_.reset();
     if (in.trig && kNumWords > 0) {
-        // Retrigger cuts the current word and starts the next one.
-        int w = in.word;
-        if (w < 0) w = 0;
-        if (w >= kNumWords) w = kNumWords - 1;
-        word_ = w;
-        synth_.start(kWords[w]);
+        int w = in.mode == Mode::Phrase ? sequencer_.next(in.phrase) : in.word;
+        if (w >= 0) {
+            if (w >= kNumWords) w = kNumWords - 1;
+            word_ = w;
+            synth_.start(kWords[w]);  // cuts off the current word
+        }
     }
     synth_.setSpeed(in.speed);
     synth_.setChirp(in.chirp);

@@ -2,6 +2,7 @@
 #   make test          build and run unit tests
 #   make render        speak every word into build/render.wav
 #   make words         regenerate dsp/src/words_generated.cpp from tools/words.txt (macOS `say`)
+#   make phrases       regenerate dsp/src/phrases_generated.cpp from tools/phrases.txt
 #   make vcv           build the VCV Rack plugin (see vcv/Makefile)
 #   make vcv-install   package and copy the plugin into Rack's plugin folder
 #   make vcv-link      symlink vcv/ into Rack's plugin folder instead (then `make vcv` is enough)
@@ -17,7 +18,7 @@ ENCODER_SRC := dsp/src/lpc_format.cpp dsp/src/lpc_analysis.cpp
 RACK_USER_DIR ?= $(HOME)/Library/Application Support/Rack2
 RACK_PLUGINS := $(RACK_USER_DIR)/plugins-mac-arm64
 
-.PHONY: all test render words vcv vcv-install vcv-link clean
+.PHONY: all test render words phrases vcv vcv-install vcv-link clean
 
 all: build/tests build/render build/lpc_encode
 
@@ -39,8 +40,13 @@ test: build/tests
 render: build/render
 	./build/render build/render.wav
 
+# Word indices can shift when words.txt changes, so phrases are rebuilt too.
 words: build/lpc_encode tools/words.txt tools/make_words.sh
 	bash tools/make_words.sh
+	python3 tools/make_phrases.py
+
+phrases:
+	python3 tools/make_phrases.py
 
 vcv:
 	$(MAKE) -C vcv

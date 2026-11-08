@@ -6,6 +6,7 @@
 //   * no heap allocation inside process()
 
 #include "cvspeak/lpc_synth.h"
+#include "cvspeak/sequencer.h"
 
 namespace cvspeak {
 
@@ -16,9 +17,12 @@ struct VoiceInputs {
     float speed = 1.f;       // frame rate multiplier, independent of pitch
     float intonation = 1.f;  // 0 = monotone, 1 = recorded pitch contour
     float chirp = 0.5f;      // 0 = clean impulse, 1 = TI-style chirp excitation
-    int word = 0;            // index into kWords, latched on trig
-    bool trig = false;       // rising edge occurred at the start of this block
-    bool reset = false;      // rising edge occurred at the start of this block
+    Mode mode = Mode::Word;
+    int word = 0;            // Word mode: index into kWords, latched on trig
+    int phrase = 0;          // Phrase mode: index into kPhrases
+    bool trig = false;       // rising edge: speak (cuts off the current word)
+    bool reset = false;      // rising edge: next trig speaks the phrase's first word.
+                             // Applied before trig, so both at once speak word 1.
 };
 
 struct VoiceOutputs {
@@ -34,6 +38,7 @@ public:
 
     bool speaking() const { return synth_.active(); }
     int currentWord() const { return word_; }  // last word triggered, -1 if none
+    const PhraseSequencer& sequencer() const { return sequencer_; }
 
 private:
     // RBJ low-pass biquad, removes images left by the 8 kHz -> host rate step.
@@ -45,6 +50,7 @@ private:
     };
 
     LpcSynth synth_;
+    PhraseSequencer sequencer_;
     Biquad lowpass_;
     float sampleRate_ = 48000.f;
     float step_ = 8000.f / 48000.f;  // 8 kHz samples per host sample

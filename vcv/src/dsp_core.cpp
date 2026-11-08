@@ -2,5 +2,7 @@
 #include "../../dsp/src/lpc_analysis.cpp"
 #include "../../dsp/src/lpc_format.cpp"
 #include "../../dsp/src/lpc_synth.cpp"
+#include "../../dsp/src/phrases_generated.cpp"
+#include "../../dsp/src/sequencer.cpp"
 #include "../../dsp/src/voice.cpp"
 #include "../../dsp/src/words_generated.cpp"

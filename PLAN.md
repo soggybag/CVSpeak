@@ -15,7 +15,7 @@ We prototype it as a VCV Rack module first, using a DSP core that is shared with
 | Mode | Word / Phrase knob + CV | TRIG | RESET |
 |---|---|---|---|
 | **Word** | Selects a word from the whole vocabulary | Speaks the selected word | — |
-| **Phrase** | Selects a phrase (a sentence or paragraph bank) | Speaks the **next word** in the phrase, wrapping at the end | Moves back to the first word |
+| **Phrase** | Selects a phrase (a sentence or paragraph bank) | Speaks the **next word** in the phrase, wrapping at the end | Moves back to the first word (doesn't cut off the current word) |
 
 - **EOW out**: fires a trigger when each word ends. Patch it back into TRIG to speak a whole phrase on its own, or use it to clock other modules.
 - **Retrigger behavior**: if a trigger arrives while a word is still playing, the current word is cut off and the next one starts. A "finish word first" setting can come later.
@@ -79,10 +79,12 @@ CVSpeak/
 - Verified: 12 unit tests. Decoded loudness is within about 1.3 dB of the originals on average (worst case 3 dB) at the default Chirp of 0.5, and the frame-loudness envelope tracks the originals (correlation 0.67–0.99).
 - Not done yet: a TI-compatible table mode, so existing TMS5220 LPC data could be played.
 
-### Phase 2: Modes and sequencer
-- Word mode and Phrase mode, with reset and retrigger behavior.
-- Phrase compiler script (`phrases.txt` → tables).
-- ✅ Done when: unit tests pass for advance, wrap, reset, and phrase changes.
+### Phase 2: Modes and sequencer ✅ (2026-11-07)
+- Word mode and Phrase mode (`dsp/include/cvspeak/sequencer.h`). TRIG advances and wraps. RESET rewinds without cutting off the current word, and it applies before TRIG, so RESET and TRIG together speak word 1. Changing phrase starts the new one from word 1. In Word mode, RESET does nothing.
+- Selection = knob (0..1 across the list) + CV at **one item per semitone** (1/12 V), wrapping at both ends, so note sequencers and quantizers can pick words.
+- `tools/phrases.txt` → `make phrases` (`tools/make_phrases.py`) → `dsp/src/phrases_generated.cpp`. The script rejects words that aren't in `words.txt`, and `make words` rebuilds phrases too, since word indices can shift. 11 phrases so far.
+- VCV: Mode switch (moves to the menu in Phase 3), Select knob with name tooltip, SEL CV jack. The Phrase display highlights the spoken word, underlines the next one, and scrolls long phrases.
+- 19 unit tests.
 
 ### Phase 3: VCV Rack module
 - SVG panel at the real HP size, matching section 2.

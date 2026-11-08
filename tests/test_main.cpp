@@ -9,6 +9,7 @@
 #include "cvspeak/lpc_analysis.h"
 #include "cvspeak/lpc_format.h"
 #include "cvspeak/lpc_synth.h"
+#include "cvspeak/sequencer.h"
 #include "cvspeak/voice.h"
 
 using namespace cvspeak;
@@ -244,7 +245,8 @@ static void testSilentUntilTriggered() {
     CHECK(v.currentWord() == -1);
 }
 
-static void testResetSilences() {
+// RESET only rewinds the phrase; it must not cut off the word being spoken.
+static void testResetDoesNotCutWord() {
     Voice v;
     v.setSampleRate(kRate);
     VoiceInputs in;
@@ -256,7 +258,105 @@ static void testResetSilences() {
     in.trig = false;
     in.reset = true;
     v.process(in, &s, 1, outs);
-    CHECK(!v.speaking());
+    CHECK(v.speaking());
+}
+
+// ---- selection + sequencer -------------------------------------------------
+
+static void testSelectIndex() {
+    CHECK(selectIndex(0.f, 0.f, 30) == 0);
+    CHECK(selectIndex(1.f, 0.f, 30) == 29);       // fully clockwise = last item
+    CHECK(selectIndex(0.5f, 0.f, 30) == 15);
+    CHECK(selectIndex(0.f, 1.f / 12.f, 30) == 1);  // one semitone = one item
+    CHECK(selectIndex(0.f, 1.f, 30) == 12);        // one octave = twelve items
+    CHECK(selectIndex(0.f, -1.f / 12.f, 30) == 29);  // wraps below zero
+    CHECK(selectIndex(1.f, 1.f / 12.f, 30) == 0);    // wraps past the end
+    CHECK(selectIndex(0.f, 0.04f, 30) == 0);         // CV snaps to the nearest semitone
+    CHECK(selectIndex(0.f, 0.05f, 30) == 1);
+    CHECK(selectIndex(0.7f, 3.f, 1) == 0);
+    CHECK(selectIndex(0.5f, 0.f, 0) == 0);
+}
+
+static void testPhraseDataIsValid() {
+    CHECK(kNumPhrases >= 1);
+    for (int p = 0; p < kNumPhrases; ++p) {
+        CHECK(kPhrases[p].length > 0);
+        for (int i = 0; i < kPhrases[p].length; ++i) CHECK(kPhrases[p].words[i] < kNumWords);
+    }
+}
+
+static const uint16_t kAbc[] = {5, 6, 7};
+static const uint16_t kXy[] = {1, 2};
+static const Phrase kTestPhrases[] = {{"A B C", kAbc, 3}, {"X Y", kXy, 2}};
+
+static void testSequencerAdvancesAndWraps() {
+    PhraseSequencer seq(kTestPhrases, 2);
+    CHECK(seq.phrase() == -1);
+    CHECK(seq.next(0) == 5);
+    CHECK(seq.spokenPosition() == 0);
+    CHECK(seq.nextPosition() == 1);
+    CHECK(seq.next(0) == 6);
+    CHECK(seq.next(0) == 7);
+    CHECK(seq.nextPosition() == 0);
+    CHECK(seq.next(0) == 5);  // wrapped
+}
+
+static void testSequencerReset() {
+    PhraseSequencer seq(kTestPhrases, 2);
+    seq.next(0);
+    seq.next(0);
+    seq.reset();
+    CHECK(seq.spokenPosition() == -1);
+    CHECK(seq.nextPosition() == 0);
+    CHECK(seq.next(0) == 5);
+}
+
+static void testSequencerPhraseChangeStartsFromTop() {
+    PhraseSequencer seq(kTestPhrases, 2);
+    seq.next(0);
+    seq.next(0);
+    CHECK(seq.next(1) == 1);  // new phrase starts at its first word
+    CHECK(seq.next(1) == 2);
+    CHECK(seq.next(0) == 5);  // and switching back starts that one over too
+    CHECK(seq.next(7) == 1);  // out-of-range phrase clamps to the last
+}
+
+// Phrase mode end to end through Voice, including RESET + TRIG in the same
+// block (clock and reset on one step): reset applies first, so word 1 speaks.
+static void testVoicePhraseMode() {
+    Voice v;
+    v.setSampleRate(kRate);
+    VoiceInputs in;
+    in.mode = Mode::Phrase;
+    in.phrase = 0;
+    VoiceOutputs outs;
+    float s;
+    const Phrase& p = kPhrases[0];
+    for (int i = 0; i < p.length + 1; ++i) {
+        in.trig = true;
+        v.process(in, &s, 1, outs);
+        CHECK(v.currentWord() == p.words[i % p.length]);
+    }
+    in.trig = true;
+    in.reset = true;
+    v.process(in, &s, 1, outs);
+    CHECK(v.currentWord() == p.words[0]);
+    CHECK(v.sequencer().spokenPosition() == 0);
+}
+
+// Word mode ignores the sequencer: RESET changes nothing, TRIG repeats the word.
+static void testVoiceWordModeIgnoresReset() {
+    Voice v;
+    v.setSampleRate(kRate);
+    VoiceInputs in;
+    in.word = 4;
+    VoiceOutputs outs;
+    float s;
+    in.trig = true;
+    v.process(in, &s, 1, outs);
+    in.reset = true;
+    v.process(in, &s, 1, outs);
+    CHECK(v.currentWord() == 4);
 }
 
 static void testRetriggerSwitchesWord() {
@@ -313,7 +413,14 @@ int main() {
         {"monotone pitch follows V/Oct", testMonotonePitchFollowsVoct},
         {"chirp keeps loudness", testChirpKeepsLoudness},
         {"silent until triggered", testSilentUntilTriggered},
-        {"reset silences", testResetSilences},
+        {"reset does not cut word", testResetDoesNotCutWord},
+        {"select index (knob + semitone CV)", testSelectIndex},
+        {"phrase data is valid", testPhraseDataIsValid},
+        {"sequencer advances and wraps", testSequencerAdvancesAndWraps},
+        {"sequencer reset", testSequencerReset},
+        {"sequencer phrase change starts from top", testSequencerPhraseChangeStartsFromTop},
+        {"voice phrase mode (+ reset with trig)", testVoicePhraseMode},
+        {"voice word mode ignores reset", testVoiceWordModeIgnoresReset},
         {"retrigger switches word", testRetriggerSwitchesWord},
         {"EOW -> TRIG loop sustains", testEowToTrigLoopSustains},
     };
