@@ -29,7 +29,7 @@ add_executable(cvspeak
     src/audio.cpp
     src/controls.cpp
     src/es8388.cpp
-    src/sh1106.cpp
+    src/oled.cpp
     ${DSP_SOURCES}
 )
 
@@ -51,6 +51,11 @@ target_link_libraries(cvspeak
 option(CVSPEAK_BREADBOARD "Bare Pico 2: no analog stages, buttons on GP15/20/22" OFF)
 if(CVSPEAK_BREADBOARD)
     target_compile_definitions(cvspeak PRIVATE CVSPEAK_BREADBOARD=1)
+endif()
+
+option(CVSPEAK_SSD1306 "SSD1306 (0.96in) OLED instead of the SH1106 (1.3in)" OFF)
+if(CVSPEAK_SSD1306)
+    target_compile_definitions(cvspeak PRIVATE CVSPEAK_SSD1306=1)
 endif()
 
 # Debug text over USB serial (printf); the UART pins are used for other things.

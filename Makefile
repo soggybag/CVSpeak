@@ -18,6 +18,7 @@
 # Firmware (Pico SDK in sdk/pico-sdk, see firmware/README.md):
 #   make firmware      build build/firmware/cvspeak.uf2
 #   make firmware-breadboard  same for a bare Pico 2 (build/firmware-breadboard/cvspeak.uf2)
+#   add SSD1306=1 to either for a 0.96in SSD1306 OLED instead of the 1.3in SH1106
 #
 # Hardware (KiCad 10, kicad-cli):
 #   make schematic     regenerate hardware/CVSpeak.kicad_sch from hardware/scripts/build_sch.py, then run ERC
@@ -106,12 +107,14 @@ words: $(DESKTOP)/lpc_encode tools/words.txt tools/phrases.txt tools/make_words.
 phrases:
 	python3 tools/make_phrases.py
 
+OLED_FLAG = -DCVSPEAK_SSD1306=$(if $(SSD1306),ON,OFF)
+
 firmware:
-	cmake -S firmware -B build/firmware -DPICO_SDK_PATH=$(CURDIR)/sdk/pico-sdk
+	cmake -S firmware -B build/firmware -DPICO_SDK_PATH=$(CURDIR)/sdk/pico-sdk $(OLED_FLAG)
 	cmake --build build/firmware -j8
 
 firmware-breadboard:
-	cmake -S firmware -B build/firmware-breadboard -DPICO_SDK_PATH=$(CURDIR)/sdk/pico-sdk -DCVSPEAK_BREADBOARD=ON
+	cmake -S firmware -B build/firmware-breadboard -DPICO_SDK_PATH=$(CURDIR)/sdk/pico-sdk -DCVSPEAK_BREADBOARD=ON $(OLED_FLAG)
 	cmake --build build/firmware-breadboard -j8
 
 panel:

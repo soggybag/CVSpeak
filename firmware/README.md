@@ -23,6 +23,8 @@ make firmware             # build/firmware/cvspeak.uf2 (the dev board)
 make firmware-breadboard  # build/firmware-breadboard/cvspeak.uf2 (a bare Pico 2, see below)
 ```
 
+Add `SSD1306=1` to either for a 0.96" SSD1306 module (7-pin SPI, same wiring) instead of the 1.3" SH1106: `make firmware-breadboard SSD1306=1`.
+
 **Flash:** hold BOOTSEL, plug the Pico 2 into USB, and drag the `.uf2` onto the `RP2350` drive. Debug text comes over USB serial at any baud rate, for example `screen /dev/tty.usbmodem* 115200`. Once a second it prints whether the codec answered and core 1's load.
 
 ## Breadboard wiring (`make firmware-breadboard`)
@@ -58,7 +60,7 @@ The breadboard build has no analog stages: the knobs sit at their defaults (Pitc
    - LRCK at 48 kHz, with 25 BCLKs per half.
 
    If BCLK isn't MCLK/5, register 0x08 is wrong: see `src/es8388.cpp`.
-3. **OLED** shows the Word screen. If it's mirrored or upside down, flip `0xA1` / `0xC8` in `src/sh1106.cpp`. If it's shifted by two pixels, change `kColumnOffset`.
+3. **OLED** shows the Word screen. If it's mirrored or upside down, flip `0xA1` / `0xC8` in `src/oled.cpp`. If it's shifted by two pixels, change `kColumnOffset`.
 4. **Encoder** scrolls one word per click. If it skips or doubles, change `kStepsPerDetent`. If it runs backwards, change `kEncoderDirection` (both in `src/controls.cpp`).
 5. **SPEAK** says the word at the codec output. TRIG on GP8 does the same.
 6. **Load:** the printed core 1 load at the defaults. For the worst case (Formant +1.5 octaves), set `formant` to 1.0 in `controls::Readings` and add 2.5 V to `formantCv`; or wait for the dev board and turn the knob plus CV. The budget is under about 70 %.
@@ -72,7 +74,7 @@ The breadboard build has no analog stages: the knobs sit at their defaults (Pitc
 | `src/audio.cpp` | Core 1: I2S, Voice, gates, EOW, LED, load meter |
 | `src/i2s.pio` | Full-duplex I2S slave (16-bit). It never stalls: re-syncs on LRCK |
 | `src/es8388.cpp` | Codec register setup (USB mode, master, 48 kHz, LIN1 in, LOUT1/ROUT1 out) |
-| `src/sh1106.cpp` | OLED setup and page writes |
+| `src/oled.cpp` | OLED setup and page writes: SH1106, or SSD1306 with `SSD1306=1` |
 | `src/controls.cpp` | Muxes, ADC, encoder (IRQ), input scaling |
 | `src/shared.h` | Data passed between the cores |
 | `src/pins.h` | Pin assignment, mirroring `hardware/docs/Pin map.md` |

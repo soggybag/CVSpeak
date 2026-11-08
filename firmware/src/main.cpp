@@ -17,7 +17,7 @@
 #include "hardware/spi.h"
 #include "pico/stdlib.h"
 #include "pins.h"
-#include "sh1106.h"
+#include "oled.h"
 #include "shared.h"
 
 Shared g_shared;
@@ -80,7 +80,7 @@ int main() {
     spi_init(spi0, 8 * 1000 * 1000);
     gpio_set_function(pins::kOledSck, GPIO_FUNC_SPI);
     gpio_set_function(pins::kOledMosi, GPIO_FUNC_SPI);
-    sh1106::init(spi0, pins::kOledDc, pins::kOledRes);
+    oled::init(spi0, pins::kOledDc, pins::kOledRes);
 
     controls::init();
     audio::start();
@@ -122,7 +122,7 @@ int main() {
             us.spokenPos = st.spokenPos;
             us.nextPos = st.nextPos;
             ui.render(fb, us);
-            sh1106::show(fb.data());
+            oled::show(fb.data());
         }
 
         if (ms % kReportEveryMs == 0) {

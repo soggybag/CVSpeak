@@ -74,11 +74,17 @@ Drawn by `hardware/scripts/build_sch.py` (`make schematic`), with the same scrip
 | Mux B spares | X6 and X7: 100k to ground, plus test pads. |
 | Pico symbol | A project copy of KiCad's `RaspberryPi_Pico` named `Pico2`, with GND and AGND retyped as power inputs. |
 
+## 2026-11-08: OLED module ordered
+
+Mitchell ordered 5 × "1.3 Inch 128x64 OLED Module IIC SPI Dual Interface 7 Pin SH1106". The header silkscreen (display side, pins out the back) reads **1 GND VDD SCK SDA RES DC CS 7**. That matches the schematic symbol in order. In SPI mode SDA is MOSI (GP3). Leave the I2C/SPI selection resistors as shipped (SPI). Measure on arrival: outline, header pin 1 position, mounting holes, active area, glass height and standoff height.
+
+Until then, firmware can be tested with a 0.96" SSD1306 (`make firmware-breadboard SSD1306=1`). A Pico 2 is ordered too.
+
 ## Still open
 
 - LP5907MFX-3.3 LCSC part and stock, or another low-noise 3.3 V LDO in SOT-23-5.
 - ES8388 reference caps: check them against the datasheet's application figure (it's an image, so it isn't in the extracted text).
-- OLED module measurements, then the `CVSpeak:OLED_SH1106_1.3in_SPI_7pin` footprint.
+- OLED module measurements (module ordered 2026-11-08), then the `CVSpeak:OLED_SH1106_1.3in_SPI_7pin` footprint.
 - LCSC numbers marked NEW in `build_sch.py` (68k, 1M, 33R, 10n): check them.
 - LCSC numbers and stock for each new part, on the day of the order.
 - Current budget, to measure: expected about 40 mA on +12 V (through the buck) and 20–30 mA on −12 V.
